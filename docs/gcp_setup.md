@@ -49,7 +49,7 @@ GOOGLE_REGION=us-central1
 
 1. Go to **console.cloud.google.com → Agent Builder → Create Agent**
 2. Select **Gemini Agent**
-3. Set display name: `IR Agent — Elastic Incident Responder`
+3. Set display name: `Elastic IR Agent — Incident Responder`
 4. Paste system prompt from `agent/prompts/system_prompt.md`
 5. Under **Tools → Add tool source → MCP**:
    - Server URL: value of `ELASTIC_MCP_ENDPOINT` from your .env

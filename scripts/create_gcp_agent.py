@@ -1,5 +1,5 @@
 """
-Create or update the IR Agent in Google Cloud Agent Builder via the Vertex AI API.
+Create or update the Elastic IR Agent in Google Cloud Agent Builder via the Vertex AI API.
 
 Prerequisites:
   pip install google-cloud-aiplatform
@@ -52,7 +52,7 @@ def create_agent() -> None:
 
     system_prompt = get_system_prompt()
 
-    print(f"Creating IR Agent in project {PROJECT_ID} / {REGION} ...")
+    print(f"Creating Elastic IR Agent in project {PROJECT_ID} / {REGION} ...")
 
     # Define MCP tool source pointing to Elastic Agent Builder
     mcp_tool_source = {
@@ -66,7 +66,7 @@ def create_agent() -> None:
     }
 
     agent = reasoning_engines.ReasoningEngine.create(
-        display_name="IR Agent — Elastic Incident Responder",
+        display_name="Elastic IR Agent — Elastic Incident Responder",
         description=(
             "Autonomous IR agent. Investigates security alerts using Elastic MCP tools, "
             "maps findings to MITRE ATT&CK, and produces structured IR reports."

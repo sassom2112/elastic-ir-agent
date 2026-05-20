@@ -1,10 +1,10 @@
-# Google Cloud Agent Builder — IR Agent Configuration
+# Google Cloud Agent Builder — Elastic IR Agent Configuration
 #
 # Deploy with:
 #   python scripts/create_gcp_agent.py
 # Or paste manually into the GCP Agent Builder UI.
 
-display_name: IR Agent — Elastic Incident Responder
+display_name: Elastic IR Agent — Incident Responder
 description: >
   Autonomous incident response agent. Investigates security alerts by searching
   Windows attack telemetry in Elastic, correlates events across hosts, maps

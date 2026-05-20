@@ -1,4 +1,4 @@
-# IR Agent — Elastic + Gemini Incident Response Agent
+# Elastic IR Agent — Gemini-Powered Incident Response on Elastic
 
 > Hackathon submission: Elastic Agent Builder × Google Cloud Agent Builder
 
@@ -81,7 +81,7 @@ The security boundary is structural, not prompt-dependent — bad actions are ma
 
 Agent memory introduces a contamination risk that doesn't exist in traditional tooling: without hard session isolation, IOCs from one investigation bleed into the next, and the model reasons across them — attributing infrastructure to a threat actor based on a prior case, not the current evidence.
 
-IR Agent closes this at the architecture layer. The dispatch enforces the current `session_id` on every memory call regardless of what the model passes, and `search_memory` has no cross-session fallback — the Elasticsearch filter is always applied. A finding from Case A is physically unreachable during Case B.
+Elastic IR Agent closes this at the architecture layer. The dispatch enforces the current `session_id` on every memory call regardless of what the model passes, and `search_memory` has no cross-session fallback — the Elasticsearch filter is always applied. A finding from Case A is physically unreachable during Case B.
 
 Each investigation is forensically isolated — the agent cannot remember what it saw in a previous case, by design.
 

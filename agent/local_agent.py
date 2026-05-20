@@ -428,7 +428,7 @@ def run_investigation(prompt: str, session_id: str = "local-001",
 
     if verbose:
         print(f"\n{'='*60}")
-        print("IR Agent — Local Investigation")
+        print("Elastic IR Agent — Local Investigation")
         print(f"{'='*60}")
         print(f"Prompt: {prompt}\n")
 
@@ -528,7 +528,7 @@ DEMO_PROMPT = (
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Local IR Agent")
+    parser = argparse.ArgumentParser(description="Elastic IR Agent — local mode")
     parser.add_argument("--prompt", "-p", type=str, help="Investigation prompt")
     parser.add_argument("--session", "-s", type=str, default="local-001")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL)
@@ -543,7 +543,7 @@ def main() -> None:
     elif args.prompt:
         run_investigation(args.prompt, session_id=args.session, model=args.model)
     else:
-        print("IR Agent — interactive mode (Ctrl+C to exit)\n")
+        print("Elastic IR Agent — interactive mode (Ctrl+C to exit)\n")
         session = f"interactive-{uuid.uuid4().hex[:6]}"
         while True:
             try:

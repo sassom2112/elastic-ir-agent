@@ -37,7 +37,7 @@ def run_via_local(prompt: str, session_id: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run IR Agent investigation")
+    parser = argparse.ArgumentParser(description="Run Elastic IR Agent investigation")
     parser.add_argument("--prompt", "-p", required=True, help="Investigation prompt")
     parser.add_argument("--agent-id", help="GCP Agent Builder agent resource ID (uses local agent if omitted)")
     parser.add_argument("--session", "-s", default="run-001", help="Session ID for memory continuity")

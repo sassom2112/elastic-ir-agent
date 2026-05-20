@@ -52,7 +52,7 @@ SAMPLE_QUERIES = [
 def main() -> None:
     client = get_client()
 
-    print("=== IR Agent — Smoke Test ===\n")
+    print("=== Elastic IR Agent — Smoke Test ===\n")
 
     # Connection check
     info = client.info()
