@@ -30,20 +30,12 @@ from elasticsearch import Elasticsearch
 
 load_dotenv()
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from agent.elastic_client import get_es
+
 SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "system_prompt.md").read_text()
 GEMINI_REST_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 DEFAULT_MODEL = "gemini-2.0-flash"
-
-
-# ── Elastic helpers ────────────────────────────────────────────────────────────
-
-def get_es() -> Elasticsearch:
-    cloud_id = os.environ.get("ELASTIC_CLOUD_ID")
-    api_key = os.environ.get("ELASTIC_API_KEY")
-    if not cloud_id or not api_key:
-        print("ERROR: ELASTIC_CLOUD_ID and ELASTIC_API_KEY must be set in .env")
-        sys.exit(1)
-    return Elasticsearch(cloud_id=cloud_id, api_key=api_key)
 
 
 def _run_esql(es: Elasticsearch, query: str) -> List[Dict]:

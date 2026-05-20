@@ -15,20 +15,12 @@ from elasticsearch import Elasticsearch, helpers
 
 load_dotenv()
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from agent.elastic_client import get_es as get_client
+
 PROCESSED_DIR = Path(__file__).parent.parent / "data" / "processed"
 INDEX_NAME = os.getenv("ELASTIC_INDEX_EVENTS", "ir-events")
 BATCH_SIZE = 500
-
-
-def get_client() -> Elasticsearch:
-    cloud_id = os.getenv("ELASTIC_CLOUD_ID")
-    api_key = os.getenv("ELASTIC_API_KEY")
-
-    if not cloud_id or not api_key:
-        print("ERROR: Set ELASTIC_CLOUD_ID and ELASTIC_API_KEY in .env")
-        sys.exit(1)
-
-    return Elasticsearch(cloud_id=cloud_id, api_key=api_key)
 
 
 def create_index(client: Elasticsearch) -> None:

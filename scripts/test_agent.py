@@ -6,10 +6,14 @@ Run after indexing to confirm data is in Elastic before connecting the agent.
 
 import os
 import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 
 load_dotenv()
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from agent.elastic_client import get_es as get_client
 
 SAMPLE_QUERIES = [
     (
@@ -43,15 +47,6 @@ SAMPLE_QUERIES = [
         """,
     ),
 ]
-
-
-def get_client() -> Elasticsearch:
-    cloud_id = os.getenv("ELASTIC_CLOUD_ID")
-    api_key = os.getenv("ELASTIC_API_KEY")
-    if not cloud_id or not api_key:
-        print("ERROR: Set ELASTIC_CLOUD_ID and ELASTIC_API_KEY in .env")
-        sys.exit(1)
-    return Elasticsearch(cloud_id=cloud_id, api_key=api_key)
 
 
 def main() -> None:

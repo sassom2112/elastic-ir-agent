@@ -16,14 +16,12 @@ from elasticsearch import Elasticsearch
 
 load_dotenv()
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from agent.elastic_client import get_es as get_client
+
 MemoryType = Literal["finding", "summary", "hypothesis", "ioc", "timeline_entry"]
-
-
-def get_client() -> Elasticsearch:
-    return Elasticsearch(
-        cloud_id=os.environ["ELASTIC_CLOUD_ID"],
-        api_key=os.environ["ELASTIC_API_KEY"],
-    )
 
 
 def write_memory(
