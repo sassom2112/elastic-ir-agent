@@ -55,7 +55,7 @@
       "id": "triage_verdict",
       "name": "Render triage verdict",
       "type": "llm",
-      "model": "gemini-2.0-flash",
+      "model": "gemini-2.5-flash",
       "system_prompt_ref": "ir_agent_system_prompt",
       "input": {
         "task": "Triage this host and return ONLY: (1) severity [CRITICAL/HIGH/MEDIUM/LOW/CLEAN], (2) top 3 IOCs or suspicious behaviors, (3) recommended next step. Be concise — this is a quick triage, not a full report.",

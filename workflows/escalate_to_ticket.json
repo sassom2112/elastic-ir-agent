@@ -36,7 +36,7 @@
       "id": "format_ticket",
       "name": "Format as incident ticket",
       "type": "llm",
-      "model": "gemini-2.0-flash",
+      "model": "gemini-2.5-flash",
       "input": {
         "task": "Format this IR summary as a JSON incident ticket with fields: title, severity, status, affected_hosts, affected_users, mitre_techniques, summary, recommended_actions, created_at. Return valid JSON only.",
         "ir_summary": "{{ir_summary}}"

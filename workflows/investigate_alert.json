@@ -106,7 +106,7 @@
       "id": "generate_report",
       "name": "Generate IR report",
       "type": "llm",
-      "model": "gemini-2.0-flash",
+      "model": "gemini-2.5-flash",
       "system_prompt_ref": "ir_agent_system_prompt",
       "input": {
         "task": "Analyze all findings and produce a complete IR report following the format in your system prompt.",
