@@ -1,0 +1,74 @@
+{
+  "name": "triage_host",
+  "description": "Quick 60-second triage of a specific host. Returns a severity verdict and the top 3 indicators of compromise. Use this as a first-pass before running the full investigate_alert workflow.",
+  "trigger": {
+    "type": "manual",
+    "input_schema": {
+      "type": "object",
+      "required": ["host_name"],
+      "properties": {
+        "host_name": {
+          "type": "string",
+          "description": "Hostname to triage"
+        },
+        "time_window": {
+          "type": "string",
+          "default": "4h"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "host_timeline",
+      "name": "Get host timeline",
+      "type": "tool_call",
+      "tool": "attack_timeline",
+      "input": {
+        "host_name": "{{host_name}}",
+        "time_window": "{{time_window}}"
+      },
+      "output_var": "timeline"
+    },
+    {
+      "id": "host_logins",
+      "name": "Check failed logins on host",
+      "type": "tool_call",
+      "tool": "failed_logins_by_host",
+      "input": {
+        "time_window": "{{time_window}}",
+        "threshold": 1
+      },
+      "output_var": "login_failures"
+    },
+    {
+      "id": "host_creds",
+      "name": "Check credential events on host",
+      "type": "tool_call",
+      "tool": "credential_access_events",
+      "input": {
+        "time_window": "{{time_window}}"
+      },
+      "output_var": "cred_events"
+    },
+    {
+      "id": "triage_verdict",
+      "name": "Render triage verdict",
+      "type": "llm",
+      "model": "gemini-2.0-flash",
+      "system_prompt_ref": "ir_agent_system_prompt",
+      "input": {
+        "task": "Triage this host and return ONLY: (1) severity [CRITICAL/HIGH/MEDIUM/LOW/CLEAN], (2) top 3 IOCs or suspicious behaviors, (3) recommended next step. Be concise — this is a quick triage, not a full report.",
+        "host": "{{host_name}}",
+        "timeline": "{{timeline}}",
+        "login_failures": "{{login_failures}}",
+        "cred_events": "{{cred_events}}"
+      },
+      "output_var": "verdict"
+    }
+  ],
+  "output": {
+    "host": "{{host_name}}",
+    "verdict": "{{verdict}}"
+  }
+}

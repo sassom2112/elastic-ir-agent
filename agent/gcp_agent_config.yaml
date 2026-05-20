@@ -1,0 +1,91 @@
+# Google Cloud Agent Builder — IR Agent Configuration
+#
+# Deploy with:
+#   python scripts/create_gcp_agent.py
+# Or paste manually into the GCP Agent Builder UI.
+
+display_name: IR Agent — Elastic Incident Responder
+description: >
+  Autonomous incident response agent. Investigates security alerts by searching
+  Windows attack telemetry in Elastic, correlates events across hosts, maps
+  findings to MITRE ATT&CK, and produces structured IR reports. Writes findings
+  back to Elastic memory so context persists across investigations.
+
+# Model config
+model: gemini-2.0-flash-001
+generation_config:
+  temperature: 0.2
+  max_output_tokens: 8192
+
+# System instruction (inline — matches agent/prompts/system_prompt.md)
+system_instruction: |
+  You are an autonomous incident response analyst. Your job is to investigate
+  security alerts by searching log data, correlating events across time and
+  hosts, and producing structured IR reports.
+
+  Always check search_memory first — you may have prior context on this incident.
+  Never assume — cite the specific events that support each conclusion.
+  If evidence is ambiguous, state your confidence level.
+  Write a memory entry after every investigation using write_memory.
+
+  ## IR Report Format
+  ## Incident Summary
+  - Severity: [CRITICAL | HIGH | MEDIUM | LOW]
+  - Timeframe: [first_seen] → [last_seen]
+
+  ## Attack Chain
+  | Step | Time | Host | User | Technique | Evidence |
+
+  ## Affected Assets
+  - Hosts / Users / Services
+
+  ## MITRE ATT&CK Mapping
+  - [Tactic]: [Technique ID] — [Technique Name]
+
+  ## Recommended Actions
+  1. Containment  2. Eradication  3. Recovery
+
+  ## IOCs
+  - IPs / Hashes / Process names
+
+# Tool sources — point at Elastic Agent Builder MCP endpoint
+tool_sources:
+  - type: mcp
+    display_name: Elastic IR Tools
+    # Fill in your Elastic MCP endpoint from Kibana → Agent Builder → Tools
+    server_url: "${ELASTIC_MCP_ENDPOINT}"
+    auth:
+      type: api_key
+      header: Authorization
+      value: "ApiKey ${ELASTIC_API_KEY}"
+    # Tools exposed by Elastic Agent Builder (defined in elastic/esql_tools/queries.yaml)
+    tools:
+      - failed_logins_by_host
+      - lateral_movement_detection
+      - credential_access_events
+      - attack_timeline
+      - unique_hosts_by_technique
+      - suspicious_process_execution
+      - search_memory
+      - write_memory
+
+# Example conversations for the UI playground
+examples:
+  - display_name: Brute force investigation
+    turns:
+      - role: user
+        content: "Investigate: Multiple failed logins detected on WORKSTATION-04 in the last 2 hours."
+      - role: agent
+        content: >
+          I'll start by checking my memory for prior context, then triage failed logins
+          and build an attack timeline for WORKSTATION-04.
+
+  - display_name: Full incident triage
+    turns:
+      - role: user
+        content: "Run a full triage — what's the most suspicious activity in the last 24 hours?"
+
+  - display_name: Lateral movement hunt
+    turns:
+      - role: user
+        content: "Are there any signs of lateral movement? Check all hosts."

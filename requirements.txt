@@ -1,5 +1,13 @@
+# Core — works on Python 3.8+
 elasticsearch>=8.0.0
 python-dotenv>=1.0.0
 pyyaml>=6.0
 requests>=2.31.0
 evtx>=0.8.0
+
+# Local agent — uses Gemini REST API directly (no SDK needed, Python 3.8 compatible)
+# No extra install required — only 'requests' above
+
+# GCP Agent Builder deployment scripts — require Python 3.10+
+# Install separately in a Python 3.10+ environment:
+#   pip install google-cloud-aiplatform>=1.60.0

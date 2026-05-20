@@ -1,0 +1,70 @@
+{
+  "name": "escalate_to_ticket",
+  "description": "Takes a completed IR report from agent memory and creates a structured incident ticket. Demonstrates Elastic Workflow reaching an external system (configurable webhook endpoint).",
+  "trigger": {
+    "type": "manual",
+    "input_schema": {
+      "type": "object",
+      "required": ["session_id"],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "IR session ID to pull the report from"
+        },
+        "webhook_url": {
+          "type": "string",
+          "description": "Optional webhook URL to POST the ticket to (e.g. Slack, PagerDuty, Jira)"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "retrieve_report",
+      "name": "Retrieve IR summary from memory",
+      "type": "tool_call",
+      "tool": "search_memory",
+      "input": {
+        "query": "incident report summary",
+        "session_id": "{{session_id}}",
+        "memory_type": "summary",
+        "top_k": 1
+      },
+      "output_var": "ir_summary"
+    },
+    {
+      "id": "format_ticket",
+      "name": "Format as incident ticket",
+      "type": "llm",
+      "model": "gemini-2.0-flash",
+      "input": {
+        "task": "Format this IR summary as a JSON incident ticket with fields: title, severity, status, affected_hosts, affected_users, mitre_techniques, summary, recommended_actions, created_at. Return valid JSON only.",
+        "ir_summary": "{{ir_summary}}"
+      },
+      "output_var": "ticket_json"
+    },
+    {
+      "id": "write_ticket_to_elastic",
+      "name": "Store ticket in Elasticsearch",
+      "type": "elasticsearch_index",
+      "index": "ir-tickets",
+      "document": "{{ticket_json}}"
+    },
+    {
+      "id": "post_webhook",
+      "name": "Post to external system",
+      "type": "http_request",
+      "condition": "{{webhook_url != null}}",
+      "method": "POST",
+      "url": "{{webhook_url}}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{{ticket_json}}"
+    }
+  ],
+  "output": {
+    "ticket": "{{ticket_json}}",
+    "session_id": "{{session_id}}"
+  }
+}

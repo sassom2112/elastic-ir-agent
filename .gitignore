@@ -5,9 +5,8 @@ __pycache__/
 .venv/
 venv/
 node_modules/
-data/raw/*.evtx
-data/raw/*.zip
-data/processed/*.json
+data/raw/
+data/processed/
 *.egg-info/
 dist/
 .DS_Store

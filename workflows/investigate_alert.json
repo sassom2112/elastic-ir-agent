@@ -1,0 +1,143 @@
+{
+  "name": "investigate_alert",
+  "description": "Full incident response investigation workflow. Triages an alert, correlates events across hosts, maps to MITRE ATT&CK, writes findings to memory, and produces a structured IR report.",
+  "trigger": {
+    "type": "manual",
+    "input_schema": {
+      "type": "object",
+      "required": ["alert_description"],
+      "properties": {
+        "alert_description": {
+          "type": "string",
+          "description": "Free-text description of the alert or suspicious activity"
+        },
+        "host_name": {
+          "type": "string",
+          "description": "Primary host to investigate (optional — agent will discover if not provided)"
+        },
+        "time_window": {
+          "type": "string",
+          "default": "24h",
+          "description": "How far back to look in logs"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "IR session ID for memory continuity across investigations"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "check_memory",
+      "name": "Check prior context",
+      "type": "subagent",
+      "description": "Search agent memory for any prior findings related to this alert",
+      "tool": "search_memory",
+      "input": {
+        "query": "{{alert_description}}",
+        "session_id": "{{session_id}}"
+      },
+      "output_var": "prior_context"
+    },
+    {
+      "id": "triage_logins",
+      "name": "Triage failed logins",
+      "type": "tool_call",
+      "tool": "failed_logins_by_host",
+      "input": {
+        "time_window": "{{time_window}}",
+        "threshold": 3
+      },
+      "output_var": "failed_logins"
+    },
+    {
+      "id": "triage_processes",
+      "name": "Check suspicious processes",
+      "type": "tool_call",
+      "tool": "suspicious_process_execution",
+      "input": {
+        "time_window": "{{time_window}}"
+      },
+      "output_var": "suspicious_procs"
+    },
+    {
+      "id": "credential_check",
+      "name": "Check credential access events",
+      "type": "tool_call",
+      "tool": "credential_access_events",
+      "input": {
+        "time_window": "{{time_window}}"
+      },
+      "output_var": "cred_events"
+    },
+    {
+      "id": "lateral_movement_check",
+      "name": "Check lateral movement",
+      "type": "tool_call",
+      "tool": "lateral_movement_detection",
+      "input": {
+        "time_window": "{{time_window}}"
+      },
+      "output_var": "lateral_movement"
+    },
+    {
+      "id": "build_timeline",
+      "name": "Build attack timeline",
+      "type": "tool_call",
+      "tool": "attack_timeline",
+      "input": {
+        "host_name": "{{host_name | default('*')}}",
+        "time_window": "{{time_window}}"
+      },
+      "output_var": "timeline"
+    },
+    {
+      "id": "technique_scope",
+      "name": "Assess blast radius",
+      "type": "tool_call",
+      "tool": "unique_hosts_by_technique",
+      "input": {
+        "time_window": "{{time_window}}"
+      },
+      "output_var": "technique_scope"
+    },
+    {
+      "id": "generate_report",
+      "name": "Generate IR report",
+      "type": "llm",
+      "model": "gemini-2.0-flash",
+      "system_prompt_ref": "ir_agent_system_prompt",
+      "input": {
+        "task": "Analyze all findings and produce a complete IR report following the format in your system prompt.",
+        "context": {
+          "alert": "{{alert_description}}",
+          "prior_context": "{{prior_context}}",
+          "failed_logins": "{{failed_logins}}",
+          "suspicious_processes": "{{suspicious_procs}}",
+          "credential_events": "{{cred_events}}",
+          "lateral_movement": "{{lateral_movement}}",
+          "timeline": "{{timeline}}",
+          "technique_scope": "{{technique_scope}}"
+        }
+      },
+      "output_var": "ir_report"
+    },
+    {
+      "id": "write_findings",
+      "name": "Persist findings to memory",
+      "type": "tool_call",
+      "tool": "write_memory",
+      "input": {
+        "content": "{{ir_report}}",
+        "memory_type": "summary",
+        "session_id": "{{session_id}}",
+        "confidence": 0.9
+      }
+    }
+  ],
+  "output": {
+    "report": "{{ir_report}}",
+    "session_id": "{{session_id}}"
+  }
+}
