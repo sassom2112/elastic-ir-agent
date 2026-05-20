@@ -9,6 +9,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import List, Tuple
 
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch, helpers
@@ -35,7 +36,7 @@ def create_index(client: Elasticsearch) -> None:
         print(f"Index already exists: {INDEX_NAME}")
 
 
-def load_events(file_path: Path) -> list[dict]:
+def load_events(file_path: Path) -> List[dict]:
     events = []
     with open(file_path) as f:
         for line in f:
@@ -48,7 +49,7 @@ def load_events(file_path: Path) -> list[dict]:
     return events
 
 
-def bulk_index(client: Elasticsearch, events: list[dict]) -> tuple[int, int]:
+def bulk_index(client: Elasticsearch, events: List[dict]) -> Tuple[int, int]:
     actions = [
         {"_index": INDEX_NAME, "_source": event}
         for event in events

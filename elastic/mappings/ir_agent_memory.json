@@ -3,17 +3,10 @@
     "properties": {
       "@timestamp": { "type": "date" },
       "session_id": { "type": "keyword" },
-      "memory_type": {
-        "type": "keyword",
-        "meta": { "description": "finding | summary | hypothesis | ioc | timeline_entry" }
-      },
+      "memory_type": { "type": "keyword" },
       "content": {
         "type": "text",
         "fields": { "keyword": { "type": "keyword" } }
-      },
-      "content_vector": {
-        "type": "sparse_vector",
-        "meta": { "description": "ELSER embedding for semantic search" }
       },
       "related_events": { "type": "keyword" },
       "mitre_techniques": { "type": "keyword" },
@@ -23,10 +16,5 @@
       "severity": { "type": "keyword" },
       "tags": { "type": "keyword" }
     }
-  },
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 0,
-    "default_pipeline": "elser-embed-memory"
   }
 }

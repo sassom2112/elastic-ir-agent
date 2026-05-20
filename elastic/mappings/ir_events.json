@@ -92,9 +92,5 @@
       "tags": { "type": "keyword" },
       "labels": { "type": "object", "dynamic": true }
     }
-  },
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 0
   }
 }
