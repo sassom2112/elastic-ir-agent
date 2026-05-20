@@ -45,14 +45,15 @@ def clone_repo(name: str, source: dict) -> None:
     print(f"[{name}] cloning {source['url']} ...")
 
     if source.get("sparse_paths"):
-        subprocess.run(
-            ["git", "clone", "--filter=blob:none", "--sparse", source["url"], str(dest)],
-            check=True,
-        )
-        subprocess.run(
-            ["git", "-C", str(dest), "sparse-checkout", "set"] + source["sparse_paths"],
-            check=True,
-        )
+        dest.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=str(dest), check=True)
+        subprocess.run(["git", "remote", "add", "origin", source["url"]], cwd=str(dest), check=True)
+        subprocess.run(["git", "sparse-checkout", "init", "--cone"], cwd=str(dest), check=True)
+        subprocess.run(["git", "sparse-checkout", "set"] + source["sparse_paths"], cwd=str(dest), check=True)
+        # Try main first, fall back to master
+        result = subprocess.run(["git", "pull", "--depth=1", "origin", "main"], cwd=str(dest))
+        if result.returncode != 0:
+            subprocess.run(["git", "pull", "--depth=1", "origin", "master"], cwd=str(dest), check=True)
     else:
         subprocess.run(
             ["git", "clone", "--depth=1", source["url"], str(dest)],
