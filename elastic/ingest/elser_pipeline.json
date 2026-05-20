@@ -1,0 +1,24 @@
+{
+  "description": "Embed agent memory content with ELSER for semantic search",
+  "processors": [
+    {
+      "inference": {
+        "model_id": ".elser_model_2_linux-x86_64",
+        "input_output": [
+          {
+            "input_field": "content",
+            "output_field": "content_vector"
+          }
+        ],
+        "on_failure": [
+          {
+            "set": {
+              "field": "_source._ingest.inference_failure",
+              "value": true
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
