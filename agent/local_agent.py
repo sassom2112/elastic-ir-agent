@@ -35,7 +35,7 @@ from agent.elastic_client import get_es
 
 SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "system_prompt.md").read_text()
 GEMINI_REST_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 def _run_esql(es: Elasticsearch, query: str) -> List[Dict]:
@@ -50,7 +50,7 @@ def _run_esql(es: Elasticsearch, query: str) -> List[Dict]:
 
 # ── Tool implementations ───────────────────────────────────────────────────────
 
-def tool_failed_logins_by_host(es: Elasticsearch, time_window: str = "24h", threshold: int = 5) -> List[Dict]:
+def tool_failed_logins_by_host(es: Elasticsearch, time_window: str = "10y", threshold: int = 5) -> List[Dict]:
     return _run_esql(es, f"""
 FROM ir-events
 | WHERE @timestamp >= NOW() - {time_window}
@@ -61,7 +61,7 @@ FROM ir-events
 """)
 
 
-def tool_lateral_movement_detection(es: Elasticsearch, time_window: str = "24h") -> List[Dict]:
+def tool_lateral_movement_detection(es: Elasticsearch, time_window: str = "10y") -> List[Dict]:
     return _run_esql(es, f"""
 FROM ir-events
 | WHERE @timestamp >= NOW() - {time_window}
@@ -72,7 +72,7 @@ FROM ir-events
 """)
 
 
-def tool_credential_access_events(es: Elasticsearch, time_window: str = "24h") -> List[Dict]:
+def tool_credential_access_events(es: Elasticsearch, time_window: str = "10y") -> List[Dict]:
     return _run_esql(es, f"""
 FROM ir-events
 | WHERE @timestamp >= NOW() - {time_window}
@@ -84,7 +84,7 @@ FROM ir-events
 """)
 
 
-def tool_attack_timeline(es: Elasticsearch, host_name: str = "*", time_window: str = "24h") -> List[Dict]:
+def tool_attack_timeline(es: Elasticsearch, host_name: str = "*", time_window: str = "10y") -> List[Dict]:
     host_filter = f'| WHERE host.name == "{host_name}"' if host_name != "*" else ""
     return _run_esql(es, f"""
 FROM ir-events
@@ -108,7 +108,7 @@ FROM ir-events
 """)
 
 
-def tool_suspicious_process_execution(es: Elasticsearch, time_window: str = "24h") -> List[Dict]:
+def tool_suspicious_process_execution(es: Elasticsearch, time_window: str = "10y") -> List[Dict]:
     return _run_esql(es, f"""
 FROM ir-events
 | WHERE @timestamp >= NOW() - {time_window}
@@ -266,6 +266,7 @@ TOOL_DECLARATIONS = {
 # ── Gemini REST client ─────────────────────────────────────────────────────────
 
 def _gemini_call(api_key: str, contents: List[Dict], model: str = DEFAULT_MODEL) -> Dict:
+    import time
     url = GEMINI_REST_URL.format(model=model, key=api_key)
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
@@ -273,7 +274,15 @@ def _gemini_call(api_key: str, contents: List[Dict], model: str = DEFAULT_MODEL)
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192},
         "contents": contents,
     }
-    resp = requests.post(url, json=payload, timeout=60)
+    for attempt in range(5):
+        resp = requests.post(url, json=payload, timeout=120)
+        if resp.status_code == 429:
+            wait = 15 * (attempt + 1)
+            print(f"  [rate limit] waiting {wait}s before retry {attempt + 1}/5 ...")
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp.json()
     resp.raise_for_status()
     return resp.json()
 
@@ -367,12 +376,12 @@ FROM ir-events
 # ── Demo scenario ──────────────────────────────────────────────────────────────
 
 DEMO_PROMPT = (
-    "Run a full threat hunt across all data. "
+    "Run a full threat hunt across all data using a time window of 10y (our log data spans 2017-2023). "
     "Start by checking memory for prior context, then: "
-    "(1) find the top ATT&CK techniques with the most affected hosts, "
-    "(2) look for any credential access or LSASS activity, "
-    "(3) check for lateral movement, "
-    "(4) build a timeline for the most suspicious host. "
+    "(1) find the top ATT&CK techniques with the most affected hosts using time_window=10y, "
+    "(2) look for credential access and LSASS activity using time_window=10y, "
+    "(3) check for lateral movement using time_window=10y, "
+    "(4) build a timeline for the most suspicious host using time_window=10y. "
     "Map everything to MITRE ATT&CK and produce a complete IR report. "
     "Session ID: demo-001"
 )
