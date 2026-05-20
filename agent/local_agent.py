@@ -18,7 +18,9 @@ Requires in .env:
 import argparse
 import json
 import os
+import re
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,11 +33,44 @@ from elasticsearch import Elasticsearch
 load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from agent.audit_log import log_tool_call
 from agent.elastic_client import get_es
 
 SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "system_prompt.md").read_text()
 GEMINI_REST_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 DEFAULT_MODEL = "gemini-2.5-flash"
+
+# ── Input validation ───────────────────────────────────────────────────────────
+
+_TIME_WINDOW_RE = re.compile(r"^\d+[smhdwy]$")
+_HOST_NAME_RE = re.compile(r"^[\w\-\.\* ]+$")
+_MEMORY_CONTENT_MAX = 10_000
+_MEMORY_STRIP_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_ALLOWED_WRITE_INDEXES = frozenset({"ir-agent-memory"})
+
+
+def _validate_tool_args(fn_name: str, fn_args: Dict) -> Optional[str]:
+    """Return an error string if args fail validation, else None. Mutates fn_args in place for sanitization."""
+    if "time_window" in fn_args:
+        val = str(fn_args["time_window"])
+        if not _TIME_WINDOW_RE.match(val):
+            return f"Invalid time_window {val!r} — must match \\d+[smhdwy] (e.g. 24h, 7d, 10y)"
+    if "host_name" in fn_args:
+        val = str(fn_args["host_name"])
+        if not _HOST_NAME_RE.match(val) or len(val) > 253:
+            return f"Invalid host_name {val!r} — only alphanumeric, hyphens, dots, underscores, * allowed"
+    if "threshold" in fn_args:
+        val = fn_args["threshold"]
+        if not isinstance(val, int) or not (1 <= val <= 10_000):
+            return f"Invalid threshold {val!r} — must be integer 1–10000"
+    if "top_k" in fn_args:
+        val = fn_args["top_k"]
+        if not isinstance(val, int) or not (1 <= val <= 100):
+            return f"Invalid top_k {val!r} — must be integer 1–100"
+    if fn_name == "write_memory" and "content" in fn_args:
+        cleaned = _MEMORY_STRIP_RE.sub("", fn_args["content"])
+        fn_args["content"] = cleaned[:_MEMORY_CONTENT_MAX]
+    return None
 
 
 def _run_esql(es: Elasticsearch, query: str) -> List[Dict]:
@@ -121,20 +156,20 @@ FROM ir-events
 
 
 def tool_search_memory(es: Elasticsearch, query: str,
-                       session_id: Optional[str] = None, top_k: int = 5) -> List[Dict]:
+                       session_id: str, top_k: int = 5) -> List[Dict]:
+    # session_id is always required — cross-session queries are forbidden to
+    # prevent IOC contamination between forensically distinct investigations.
     index = os.getenv("ELASTIC_INDEX_MEMORY", "ir-agent-memory")
     body: Dict = {
         "size": top_k,
-        "query": {"match": {"content": query}},
-        "_source": ["content", "memory_type", "@timestamp", "mitre_techniques", "affected_hosts"],
-    }
-    if session_id:
-        body["query"] = {
+        "query": {
             "bool": {
                 "must": [{"match": {"content": query}}],
                 "filter": [{"term": {"session_id": session_id}}],
             }
-        }
+        },
+        "_source": ["content", "memory_type", "@timestamp", "mitre_techniques", "affected_hosts"],
+    }
     try:
         resp = es.search(index=index, body=body)
         return [{"score": h["_score"], **h["_source"]} for h in resp["hits"]["hits"]]
@@ -146,6 +181,8 @@ def tool_write_memory(es: Elasticsearch, content: str, memory_type: str,
                       session_id: str, mitre_techniques: Optional[List] = None,
                       affected_hosts: Optional[List] = None, confidence: float = 0.9) -> Dict:
     index = os.getenv("ELASTIC_INDEX_MEMORY", "ir-agent-memory")
+    if index not in _ALLOWED_WRITE_INDEXES:
+        return {"status": "error", "error": f"Write target {index!r} is not in the approved index allowlist"}
     doc: Dict = {
         "@timestamp": datetime.now(timezone.utc).isoformat(),
         "session_id": session_id,
@@ -234,13 +271,13 @@ TOOL_DECLARATIONS = {
         },
         {
             "name": "search_memory",
-            "description": "Search prior IR findings from agent memory.",
+            "description": "Search prior IR findings from agent memory. Scoped strictly to the current session — never searches across investigations.",
             "parameters": {
                 "type": "OBJECT",
-                "required": ["query"],
+                "required": ["query", "session_id"],
                 "properties": {
                     "query": {"type": "STRING"},
-                    "session_id": {"type": "STRING"},
+                    "session_id": {"type": "STRING", "description": "Must match the current investigation session ID"},
                     "top_k": {"type": "INTEGER"},
                 },
             },
@@ -262,15 +299,43 @@ TOOL_DECLARATIONS = {
     ]
 }
 
+VERIFIER_SYSTEM_PROMPT = """\
+You are a Forensic Auditor. A Triage Analyst has produced the IR report below.
+Your job: independently verify each factual claim by running your own tool queries.
+Never accept claims on faith — confirm them directly against the data.
+
+For each significant claim (techniques used, affected hosts, credential access, lateral movement):
+1. Run the relevant tool to check whether supporting evidence actually exists in the data
+2. Label the claim: VERIFIED, REFUTED, or UNVERIFIABLE (explain why)
+
+Output format:
+## Verification Summary
+Verified: N  |  Refuted: N  |  Unverifiable: N
+
+## Claim-by-Claim Results
+| Claim | Status | Evidence |
+|-------|--------|---------|
+
+You do not have write_memory access. Do not attempt to persist anything.\
+"""
+
+VERIFIER_TOOL_DECLARATIONS = {
+    "functionDeclarations": [
+        d for d in TOOL_DECLARATIONS["functionDeclarations"]
+        if d["name"] != "write_memory"
+    ]
+}
+
 
 # ── Gemini REST client ─────────────────────────────────────────────────────────
 
-def _gemini_call(api_key: str, contents: List[Dict], model: str = DEFAULT_MODEL) -> Dict:
-    import time
+def _gemini_call(api_key: str, contents: List[Dict], model: str = DEFAULT_MODEL,
+                 system_prompt: Optional[str] = None,
+                 tool_declarations: Optional[Dict] = None) -> Dict:
     url = GEMINI_REST_URL.format(model=model, key=api_key)
     payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "tools": [TOOL_DECLARATIONS],
+        "system_instruction": {"parts": [{"text": system_prompt or SYSTEM_PROMPT}]},
+        "tools": [tool_declarations or TOOL_DECLARATIONS],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192},
         "contents": contents,
     }
@@ -291,6 +356,64 @@ def _extract_parts(response: Dict) -> List[Dict]:
     return response.get("candidates", [{}])[0].get("content", {}).get("parts", [])
 
 
+# ── Forensic Auditor ───────────────────────────────────────────────────────────
+
+def run_verifier(report: str, session_id: str,
+                 model: str = DEFAULT_MODEL, verbose: bool = True) -> str:
+    """Second-pass verification: independent agent re-queries Elastic to fact-check each IR claim."""
+    api_key = os.getenv("GOOGLE_API_KEY")
+    es_read = get_es(write=False)
+
+    if verbose:
+        print(f"\n{'─'*60}")
+        print("Forensic Auditor — Independent Verification Pass")
+        print(f"{'─'*60}\n")
+
+    contents: List[Dict] = [
+        {"role": "user", "parts": [{"text": f"Verify this IR report:\n\n{report}"}]}
+    ]
+
+    for _ in range(8):
+        raw = _gemini_call(api_key, contents, model=model,
+                           system_prompt=VERIFIER_SYSTEM_PROMPT,
+                           tool_declarations=VERIFIER_TOOL_DECLARATIONS)
+        parts = _extract_parts(raw)
+        fn_calls = [p["functionCall"] for p in parts if "functionCall" in p]
+        text_parts = [p.get("text", "") for p in parts if "text" in p]
+
+        if text_parts and not fn_calls:
+            verification = "\n".join(t for t in text_parts if t)
+            if verbose:
+                print(verification)
+            return verification
+
+        if not fn_calls:
+            break
+
+        contents.append({"role": "model", "parts": parts})
+        fn_response_parts = []
+        for fc in fn_calls:
+            fn_name = fc["name"]
+            fn_args = fc.get("args", {})
+            if verbose:
+                print(f"[Auditor] {fn_name}({json.dumps(fn_args, default=str)[:100]})")
+
+            validation_error = _validate_tool_args(fn_name, fn_args)
+            if validation_error:
+                result: Any = {"error": validation_error}
+            else:
+                fn = TOOL_FNS.get(fn_name)
+                result = fn(es_read, **fn_args) if fn else {"error": f"Unknown tool: {fn_name}"}
+
+            fn_response_parts.append({
+                "functionResponse": {"name": fn_name, "response": {"result": result}}
+            })
+
+        contents.append({"role": "user", "parts": fn_response_parts})
+
+    return "Verification complete (max turns reached)."
+
+
 # ── Agent loop ─────────────────────────────────────────────────────────────────
 
 def run_investigation(prompt: str, session_id: str = "local-001",
@@ -300,7 +423,8 @@ def run_investigation(prompt: str, session_id: str = "local-001",
         print("ERROR: Set GOOGLE_API_KEY in .env — get a free key at aistudio.google.com")
         sys.exit(1)
 
-    es = get_es()
+    es_read = get_es(write=False)
+    es_write = get_es(write=True)
 
     if verbose:
         print(f"\n{'='*60}")
@@ -321,10 +445,11 @@ def run_investigation(prompt: str, session_id: str = "local-001",
         text_parts = [p.get("text", "") for p in parts if "text" in p]
 
         if text_parts and not fn_calls:
-            # Final answer
+            # Final answer — then run independent verification pass
             final = "\n".join(t for t in text_parts if t)
             if verbose:
                 print(final)
+            run_verifier(final, session_id=session_id, model=model, verbose=verbose)
             return final
 
         if not fn_calls:
@@ -340,11 +465,26 @@ def run_investigation(prompt: str, session_id: str = "local-001",
             fn_name = fc["name"]
             fn_args = fc.get("args", {})
 
+            # Enforce session isolation — memory tools always use this investigation's
+            # session_id regardless of what the LLM passed, preventing cross-case contamination.
+            if fn_name in ("search_memory", "write_memory"):
+                fn_args["session_id"] = session_id
+
             if verbose:
                 print(f"[Tool] {fn_name}({json.dumps(fn_args, default=str)[:120]})")
 
-            fn = TOOL_FNS.get(fn_name)
-            result = fn(es, **fn_args) if fn else {"error": f"Unknown tool: {fn_name}"}
+            validation_error = _validate_tool_args(fn_name, fn_args)
+            if validation_error:
+                result = {"error": validation_error}
+                log_tool_call(session_id, fn_name, fn_args, result,
+                              blocked_reason=validation_error)
+            else:
+                t0 = time.monotonic()
+                fn = TOOL_FNS.get(fn_name)
+                es = es_write if fn_name == "write_memory" else es_read
+                result = fn(es, **fn_args) if fn else {"error": f"Unknown tool: {fn_name}"}
+                log_tool_call(session_id, fn_name, fn_args, result,
+                              duration_ms=int((time.monotonic() - t0) * 1000))
 
             fn_response_parts.append({
                 "functionResponse": {

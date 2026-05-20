@@ -19,9 +19,12 @@ load_dotenv()
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from agent.audit_log import log_tool_call
 from agent.elastic_client import get_es as get_client
 
 MemoryType = Literal["finding", "summary", "hypothesis", "ioc", "timeline_entry"]
+
+_ALLOWED_WRITE_INDEXES = frozenset({"ir-agent-memory"})
 
 
 def write_memory(
@@ -37,8 +40,10 @@ def write_memory(
     tags: Optional[List[str]] = None,
 ) -> dict:
     """Write a memory entry to the agent memory index."""
-    client = get_client()
+    client = get_client(write=True)
     index = os.getenv("ELASTIC_INDEX_MEMORY", "ir-agent-memory")
+    if index not in _ALLOWED_WRITE_INDEXES:
+        return {"status": "error", "error": f"Write target {index!r} is not in the approved index allowlist"}
 
     doc = {
         "@timestamp": datetime.now(timezone.utc).isoformat(),
@@ -64,25 +69,28 @@ def write_memory(
     doc_id = str(uuid.uuid4())
     client.index(index=index, id=doc_id, document=doc)
 
-    return {"id": doc_id, "status": "written", "memory_type": memory_type}
+    result = {"id": doc_id, "status": "written", "memory_type": memory_type}
+    log_tool_call(session_id, "write_memory",
+                  {"memory_type": memory_type, "content_len": len(content)}, result)
+    return result
 
 
 def search_memory(
     query: str,
-    session_id: Optional[str] = None,
+    session_id: str,
     memory_type: Optional[MemoryType] = None,
     top_k: int = 5,
 ) -> List[dict]:
     """
-    Search agent memory using hybrid text + semantic search.
-    Returns the top_k most relevant memory entries.
+    Search agent memory scoped strictly to session_id.
+    Cross-session queries are forbidden — each investigation is forensically isolated
+    to prevent IOC contamination and false attribution between unrelated cases.
     """
     client = get_client()
     index = os.getenv("ELASTIC_INDEX_MEMORY", "ir-agent-memory")
 
-    must_filters = []
-    if session_id:
-        must_filters.append({"term": {"session_id": session_id}})
+    # session_id is always required and always applied as a hard filter
+    must_filters: list = [{"term": {"session_id": session_id}}]
     if memory_type:
         must_filters.append({"term": {"memory_type": memory_type}})
 

@@ -11,7 +11,7 @@ ES|QL analytics, and write-back memory.
 1. **Ingest** — Real Windows attack logs (278 EVTX-ATTACK-SAMPLES, 36,951 events) indexed into Elastic Cloud Serverless
 2. **Search** — Elastic Agent Builder exposes hybrid semantic + keyword + vector search as MCP tools
 3. **Reason** — Google Cloud Agent Builder (Gemini) calls those tools to investigate alerts, correlate events, and map to MITRE ATT&CK
-4. **Remember** — Findings are written back into Elasticsearch so the agent builds context over time across sessions
+4. **Remember** — Findings are written back into Elasticsearch and scoped to the investigation session, so the agent builds context within a case without contaminating other investigations
 5. **Report** — Structured IR report: timeline, affected hosts, technique IDs, recommended containment
 
 ## Stack
@@ -73,38 +73,27 @@ ir-agent/
 └── docs/             # Architecture diagrams, demo script
 ```
 
----
+## Security Model
 
-## Three-Tool Platform
+The security boundary is structural, not prompt-dependent — bad actions are made architecturally impossible rather than instructed away.
 
-IR Agent is one of three independent tools covering the full evidence stack of a Windows
-intrusion. Each runs standalone; together they provide convergent detection backed by the
-same attack corpus.
+### Forensic Isolation
 
-| Tool | Data layer | AI model | Unique capability |
-|------|-----------|----------|-------------------|
-| **[ADVERSA](https://github.com/sassom2112/adversa)** | Disk image (offline) | Claude (Anthropic) | Adversarial training, physical verification, false-positive elimination |
-| **[Splunk Agentic IR](https://github.com/sassom2112/splunk-agentic-ir)** | Splunk / SPL | Claude (Anthropic) | Alert-triggered workflow, playbook recommendations |
-| **IR Agent** | Elasticsearch / ES\|QL | Gemini (Google) | Cross-session memory, hybrid semantic + keyword search |
+Agent memory introduces a contamination risk that doesn't exist in traditional tooling: without hard session isolation, IOCs from one investigation bleed into the next, and the model reasons across them — attributing infrastructure to a threat actor based on a prior case, not the current evidence.
 
-### IOC Exchange
+IR Agent closes this at the architecture layer. The dispatch enforces the current `session_id` on every memory call regardless of what the model passes, and `search_memory` has no cross-session fallback — the Elasticsearch filter is always applied. A finding from Case A is physically unreachable during Case B.
 
-The shared IOC bridge (in [splunk-agentic-ir](https://github.com/sassom2112/splunk-agentic-ir/blob/main/agent/ioc_bridge.py))
-translates findings between all three tools:
+Each investigation is forensically isolated — the agent cannot remember what it saw in a previous case, by design.
 
-```bash
-# ADVERSA confirmed IOCs → ES|QL hunt in Elastic
-python3 -m agent.ioc_bridge adversa-to-esql /path/to/adversa-iocs.json \
-    --index ir-events
-
-# Elastic memory records → ADVERSA IOC format (for disk investigation)
-python3 -m agent.ioc_bridge elastic-to-adversa /path/to/memory.jsonl
-
-# Merge ADVERSA disk findings + Elastic memory → unified IOC dict
-python3 -m agent.ioc_bridge merge adversa-iocs.json memory.jsonl --source elastic
-```
-
----
+| Control | Implementation |
+|---------|---------------|
+| **Input validation** | Every tool argument is validated before any Elasticsearch call — `time_window` against `\d+[smhdwy]`, `host_name` against an alphanumeric allowlist, integer range checks on `threshold` and `top_k` |
+| **Memory content sanitization** | `write_memory` input strips control characters and is hard-capped at 10,000 chars before touching Elasticsearch, blocking indirect prompt injection via poisoned retrieval |
+| **Write index allowlist** | `write_memory` resolves the target index and checks it against a hardcoded allowlist (`ir-agent-memory`). Misconfiguring `ELASTIC_INDEX_MEMORY=ir-events` is blocked at write time |
+| **Split read/write API keys** | `ELASTIC_API_KEY_READ` (ES\|QL queries) and `ELASTIC_API_KEY_WRITE` (memory index only) — separate scoped keys, falling back to a single key for local dev |
+| **Chain-of-custody audit log** | Every tool call — allowed or blocked — is atomically appended to `reports/audit_log.jsonl` using `os.open`/`os.write` (not buffered IO). Blocked calls log the rejection reason; successful calls log duration |
+| **Forensic Auditor** | After each investigation, a second independent Gemini pass receives only the finished IR report — no access to the Triage Agent's tool history or `write_memory` — and re-queries Elastic to label each claim VERIFIED / REFUTED / UNVERIFIABLE |
+| **Session isolation** | `search_memory` is hard-scoped to the current `session_id` — the LLM cannot query across investigations. The dispatch layer enforces this regardless of what the model passes, preventing IOC contamination and false attribution between forensically distinct cases |
 
 ## License
 
