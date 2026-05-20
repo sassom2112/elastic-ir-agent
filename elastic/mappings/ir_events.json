@@ -1,0 +1,100 @@
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "event": {
+        "properties": {
+          "id": { "type": "keyword" },
+          "code": { "type": "keyword" },
+          "action": { "type": "keyword" },
+          "category": { "type": "keyword" },
+          "type": { "type": "keyword" },
+          "outcome": { "type": "keyword" },
+          "severity": { "type": "integer" }
+        }
+      },
+      "host": {
+        "properties": {
+          "name": { "type": "keyword" },
+          "hostname": { "type": "keyword" },
+          "ip": { "type": "ip" },
+          "os": {
+            "properties": {
+              "name": { "type": "keyword" },
+              "version": { "type": "keyword" }
+            }
+          }
+        }
+      },
+      "user": {
+        "properties": {
+          "name": { "type": "keyword" },
+          "domain": { "type": "keyword" },
+          "id": { "type": "keyword" }
+        }
+      },
+      "process": {
+        "properties": {
+          "name": { "type": "keyword" },
+          "pid": { "type": "long" },
+          "command_line": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+          "parent": {
+            "properties": {
+              "name": { "type": "keyword" },
+              "pid": { "type": "long" }
+            }
+          }
+        }
+      },
+      "network": {
+        "properties": {
+          "direction": { "type": "keyword" },
+          "protocol": { "type": "keyword" },
+          "destination": {
+            "properties": {
+              "ip": { "type": "ip" },
+              "port": { "type": "integer" }
+            }
+          },
+          "source": {
+            "properties": {
+              "ip": { "type": "ip" },
+              "port": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "threat": {
+        "properties": {
+          "technique": {
+            "properties": {
+              "id": { "type": "keyword" },
+              "name": { "type": "keyword" }
+            }
+          },
+          "tactic": {
+            "properties": {
+              "id": { "type": "keyword" },
+              "name": { "type": "keyword" }
+            }
+          }
+        }
+      },
+      "winlog": {
+        "properties": {
+          "event_id": { "type": "integer" },
+          "channel": { "type": "keyword" },
+          "computer_name": { "type": "keyword" },
+          "record_id": { "type": "long" }
+        }
+      },
+      "message": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+      "tags": { "type": "keyword" },
+      "labels": { "type": "object", "dynamic": true }
+    }
+  },
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  }
+}

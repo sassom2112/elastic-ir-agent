@@ -1,0 +1,121 @@
+# ES|QL tool definitions for Elastic Agent Builder
+# Each entry becomes a callable MCP tool for the Gemini agent
+
+tools:
+
+  - name: failed_logins_by_host
+    description: >
+      Count failed login attempts grouped by host. Use this to detect brute force
+      activity or credential stuffing against specific machines.
+    parameters:
+      - name: time_window
+        type: string
+        default: "1h"
+        description: "Time window to look back, e.g. '1h', '24h', '7d'"
+      - name: threshold
+        type: integer
+        default: 5
+        description: "Minimum number of failures to include in results"
+    esql: |
+      FROM ir-events
+      | WHERE @timestamp >= NOW() - {time_window}
+      | WHERE event.code == "4625" OR event.action == "logon-failed"
+      | STATS failure_count = COUNT(*) BY host.name, user.name
+      | WHERE failure_count >= {threshold}
+      | SORT failure_count DESC
+
+  - name: lateral_movement_detection
+    description: >
+      Find evidence of lateral movement: successful logins from unusual source IPs,
+      remote service creation (event 7045), or SMB access (event 5140).
+    parameters:
+      - name: time_window
+        type: string
+        default: "24h"
+    esql: |
+      FROM ir-events
+      | WHERE @timestamp >= NOW() - {time_window}
+      | WHERE event.code IN ("4624", "7045", "5140", "4648")
+        AND event.outcome == "success"
+      | STATS host_count = COUNT_DISTINCT(host.name) BY user.name, source.ip
+      | WHERE host_count > 1
+      | SORT host_count DESC
+
+  - name: credential_access_events
+    description: >
+      Surface credential dumping and access events: LSASS access (event 4656),
+      SAM database reads, and known credential dumping tool signatures.
+    parameters:
+      - name: time_window
+        type: string
+        default: "24h"
+    esql: |
+      FROM ir-events
+      | WHERE @timestamp >= NOW() - {time_window}
+      | WHERE event.code IN ("4656", "4663", "4704")
+        OR (process.name IN ("mimikatz.exe", "procdump.exe", "lsass.exe")
+            AND event.category == "process")
+      | KEEP @timestamp, host.name, user.name, process.name,
+             process.command_line, event.code, message
+      | SORT @timestamp DESC
+      | LIMIT 100
+
+  - name: attack_timeline
+    description: >
+      Build a chronological timeline of security events for a specific host
+      or user. Essential for reconstructing an attack chain.
+    parameters:
+      - name: host_name
+        type: string
+        description: "Hostname to investigate (use * for all hosts)"
+      - name: time_window
+        type: string
+        default: "24h"
+    esql: |
+      FROM ir-events
+      | WHERE @timestamp >= NOW() - {time_window}
+      | WHERE host.name == "{host_name}" OR "{host_name}" == "*"
+      | KEEP @timestamp, host.name, user.name, event.code, event.action,
+             event.category, process.name, message, threat.technique.id
+      | SORT @timestamp ASC
+
+  - name: unique_hosts_by_technique
+    description: >
+      Count how many unique hosts were affected by each MITRE ATT&CK technique.
+      Use this to understand the blast radius of an attack.
+    parameters:
+      - name: time_window
+        type: string
+        default: "7d"
+    esql: |
+      FROM ir-events
+      | WHERE @timestamp >= NOW() - {time_window}
+      | WHERE threat.technique.id IS NOT NULL
+      | STATS affected_hosts = COUNT_DISTINCT(host.name),
+               event_count = COUNT(*)
+        BY threat.technique.id, threat.technique.name, threat.tactic.name
+      | SORT affected_hosts DESC
+
+  - name: suspicious_process_execution
+    description: >
+      Find suspicious process executions: living-off-the-land binaries (LOLBins),
+      encoded PowerShell, or processes spawned from unusual parents.
+    parameters:
+      - name: time_window
+        type: string
+        default: "24h"
+    esql: |
+      FROM ir-events
+      | WHERE @timestamp >= NOW() - {time_window}
+      | WHERE event.category == "process"
+        AND (
+          process.name IN ("powershell.exe", "cmd.exe", "wscript.exe",
+                           "mshta.exe", "rundll32.exe", "regsvr32.exe",
+                           "certutil.exe", "bitsadmin.exe")
+          OR process.command_line LIKE "*-EncodedCommand*"
+          OR process.command_line LIKE "*-enc *"
+        )
+      | KEEP @timestamp, host.name, user.name, process.name,
+             process.command_line, process.parent.name
+      | SORT @timestamp DESC
+      | LIMIT 200
