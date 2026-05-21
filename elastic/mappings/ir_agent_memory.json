@@ -1,4 +1,7 @@
 {
+  "settings": {
+    "default_pipeline": "elser-embed-memory"
+  },
   "mappings": {
     "properties": {
       "@timestamp": { "type": "date" },
@@ -8,6 +11,7 @@
         "type": "text",
         "fields": { "keyword": { "type": "keyword" } }
       },
+      "content_vector": { "type": "sparse_vector" },
       "related_events": { "type": "keyword" },
       "mitre_techniques": { "type": "keyword" },
       "affected_hosts": { "type": "keyword" },

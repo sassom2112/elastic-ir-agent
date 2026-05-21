@@ -26,7 +26,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import requests
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 
@@ -34,11 +33,11 @@ load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from agent.audit_log import log_tool_call
+from agent.auditor import run_verifier
 from agent.elastic_client import get_es
+from agent.gemini_client import DEFAULT_MODEL, extract_parts, gemini_call
 
 SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "system_prompt.md").read_text()
-GEMINI_REST_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-DEFAULT_MODEL = "gemini-2.5-flash"
 
 # ── Input validation ───────────────────────────────────────────────────────────
 
@@ -160,21 +159,71 @@ def tool_search_memory(es: Elasticsearch, query: str,
     # session_id is always required — cross-session queries are forbidden to
     # prevent IOC contamination between forensically distinct investigations.
     index = os.getenv("ELASTIC_INDEX_MEMORY", "ir-agent-memory")
-    body: Dict = {
-        "size": top_k,
-        "query": {
-            "bool": {
-                "must": [{"match": {"content": query}}],
-                "filter": [{"term": {"session_id": session_id}}],
+    session_filter = [{"term": {"session_id": session_id}}]
+    source_fields = ["content", "memory_type", "@timestamp", "mitre_techniques", "affected_hosts"]
+
+    # Hybrid: ELSER semantic (text_expansion) + BM25 keyword via RRF.
+    # Falls back to BM25-only if ELSER embeddings are not available.
+    hybrid_body: Dict = {
+        "retriever": {
+            "rrf": {
+                "retrievers": [
+                    {
+                        "standard": {
+                            "query": {
+                                "bool": {
+                                    "must": [{"match": {"content": query}}],
+                                    "filter": session_filter,
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "standard": {
+                            "query": {
+                                "bool": {
+                                    "must": [{
+                                        "text_expansion": {
+                                            "content_vector": {
+                                                "model_id": ".elser_model_2",
+                                                "model_text": query,
+                                            }
+                                        }
+                                    }],
+                                    "filter": session_filter,
+                                }
+                            }
+                        }
+                    },
+                ],
+                "rank_window_size": max(top_k * 2, 20),
             }
         },
-        "_source": ["content", "memory_type", "@timestamp", "mitre_techniques", "affected_hosts"],
+        "size": top_k,
+        "_source": source_fields,
     }
+
     try:
-        resp = es.search(index=index, body=body)
-        return [{"score": h["_score"], **h["_source"]} for h in resp["hits"]["hits"]]
+        resp = es.search(index=index, body=hybrid_body)
+        return [{"score": h.get("_rank", h.get("_score", 0)), **h["_source"]}
+                for h in resp["hits"]["hits"]]
     except Exception:
-        return []
+        # Graceful degradation: ELSER not deployed, fall back to BM25
+        bm25_body: Dict = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [{"match": {"content": query}}],
+                    "filter": session_filter,
+                }
+            },
+            "_source": source_fields,
+        }
+        try:
+            resp = es.search(index=index, body=bm25_body)
+            return [{"score": h["_score"], **h["_source"]} for h in resp["hits"]["hits"]]
+        except Exception:
+            return []
 
 
 def tool_write_memory(es: Elasticsearch, content: str, memory_type: str,
@@ -299,119 +348,18 @@ TOOL_DECLARATIONS = {
     ]
 }
 
-VERIFIER_SYSTEM_PROMPT = """\
-You are a Forensic Auditor. A Triage Analyst has produced the IR report below.
-Your job: independently verify each factual claim by running your own tool queries.
-Never accept claims on faith — confirm them directly against the data.
+# ── Report persistence ─────────────────────────────────────────────────────────
 
-For each significant claim (techniques used, affected hosts, credential access, lateral movement):
-1. Run the relevant tool to check whether supporting evidence actually exists in the data
-2. Label the claim: VERIFIED, REFUTED, or UNVERIFIABLE (explain why)
-
-Output format:
-## Verification Summary
-Verified: N  |  Refuted: N  |  Unverifiable: N
-
-## Claim-by-Claim Results
-| Claim | Status | Evidence |
-|-------|--------|---------|
-
-You do not have write_memory access. Do not attempt to persist anything.\
-"""
-
-VERIFIER_TOOL_DECLARATIONS = {
-    "functionDeclarations": [
-        d for d in TOOL_DECLARATIONS["functionDeclarations"]
-        if d["name"] != "write_memory"
-    ]
-}
+_REPORTS_DIR = Path(__file__).parent.parent / "reports"
 
 
-# ── Gemini REST client ─────────────────────────────────────────────────────────
-
-def _gemini_call(api_key: str, contents: List[Dict], model: str = DEFAULT_MODEL,
-                 system_prompt: Optional[str] = None,
-                 tool_declarations: Optional[Dict] = None) -> Dict:
-    url = GEMINI_REST_URL.format(model=model, key=api_key)
-    payload = {
-        "system_instruction": {"parts": [{"text": system_prompt or SYSTEM_PROMPT}]},
-        "tools": [tool_declarations or TOOL_DECLARATIONS],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192},
-        "contents": contents,
-    }
-    for attempt in range(5):
-        resp = requests.post(url, json=payload, timeout=120)
-        if resp.status_code == 429:
-            wait = 15 * (attempt + 1)
-            print(f"  [rate limit] waiting {wait}s before retry {attempt + 1}/5 ...")
-            time.sleep(wait)
-            continue
-        resp.raise_for_status()
-        return resp.json()
-    resp.raise_for_status()
-    return resp.json()
-
-
-def _extract_parts(response: Dict) -> List[Dict]:
-    return response.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-
-
-# ── Forensic Auditor ───────────────────────────────────────────────────────────
-
-def run_verifier(report: str, session_id: str,
-                 model: str = DEFAULT_MODEL, verbose: bool = True) -> str:
-    """Second-pass verification: independent agent re-queries Elastic to fact-check each IR claim."""
-    api_key = os.getenv("GOOGLE_API_KEY")
-    es_read = get_es(write=False)
-
-    if verbose:
-        print(f"\n{'─'*60}")
-        print("Forensic Auditor — Independent Verification Pass")
-        print(f"{'─'*60}\n")
-
-    contents: List[Dict] = [
-        {"role": "user", "parts": [{"text": f"Verify this IR report:\n\n{report}"}]}
-    ]
-
-    for _ in range(8):
-        raw = _gemini_call(api_key, contents, model=model,
-                           system_prompt=VERIFIER_SYSTEM_PROMPT,
-                           tool_declarations=VERIFIER_TOOL_DECLARATIONS)
-        parts = _extract_parts(raw)
-        fn_calls = [p["functionCall"] for p in parts if "functionCall" in p]
-        text_parts = [p.get("text", "") for p in parts if "text" in p]
-
-        if text_parts and not fn_calls:
-            verification = "\n".join(t for t in text_parts if t)
-            if verbose:
-                print(verification)
-            return verification
-
-        if not fn_calls:
-            break
-
-        contents.append({"role": "model", "parts": parts})
-        fn_response_parts = []
-        for fc in fn_calls:
-            fn_name = fc["name"]
-            fn_args = fc.get("args", {})
-            if verbose:
-                print(f"[Auditor] {fn_name}({json.dumps(fn_args, default=str)[:100]})")
-
-            validation_error = _validate_tool_args(fn_name, fn_args)
-            if validation_error:
-                result: Any = {"error": validation_error}
-            else:
-                fn = TOOL_FNS.get(fn_name)
-                result = fn(es_read, **fn_args) if fn else {"error": f"Unknown tool: {fn_name}"}
-
-            fn_response_parts.append({
-                "functionResponse": {"name": fn_name, "response": {"result": result}}
-            })
-
-        contents.append({"role": "user", "parts": fn_response_parts})
-
-    return "Verification complete (max turns reached)."
+def _save_report(content: str, session_id: str, suffix: str = "ir_report") -> Path:
+    _REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    path = _REPORTS_DIR / f"{suffix}_{session_id}_{ts}.md"
+    path.write_text(content, encoding="utf-8")
+    print(f"\n[Report saved → {path}]")
+    return path
 
 
 # ── Agent loop ─────────────────────────────────────────────────────────────────
@@ -437,19 +385,24 @@ def run_investigation(prompt: str, session_id: str = "local-001",
     max_turns = 12
 
     for _ in range(max_turns):
-        raw = _gemini_call(api_key, contents, model=model)
-        parts = _extract_parts(raw)
+        raw = gemini_call(contents, model=model, system_prompt=SYSTEM_PROMPT,
+                          tool_declarations=TOOL_DECLARATIONS)
+        parts = extract_parts(raw)
 
         # Collect any function calls in this turn
         fn_calls = [p["functionCall"] for p in parts if "functionCall" in p]
         text_parts = [p.get("text", "") for p in parts if "text" in p]
 
         if text_parts and not fn_calls:
-            # Final answer — then run independent verification pass
+            # Final answer — save to disk, then run independent verification pass
             final = "\n".join(t for t in text_parts if t)
             if verbose:
                 print(final)
-            run_verifier(final, session_id=session_id, model=model, verbose=verbose)
+            _save_report(final, session_id)
+            verification = run_verifier(final, tool_fns=TOOL_FNS,
+                                        validate_args_fn=_validate_tool_args,
+                                        model=model, verbose=verbose)
+            _save_report(verification, session_id, suffix="verification")
             return final
 
         if not fn_calls:
@@ -516,12 +469,12 @@ FROM ir-events
 # ── Demo scenario ──────────────────────────────────────────────────────────────
 
 DEMO_PROMPT = (
-    "Run a full threat hunt across all data using a time window of 10y (our log data spans 2017-2023). "
+    "Run a full threat hunt across all indexed data (time_window=10y). "
     "Start by checking memory for prior context, then: "
-    "(1) find the top ATT&CK techniques with the most affected hosts using time_window=10y, "
-    "(2) look for credential access and LSASS activity using time_window=10y, "
-    "(3) check for lateral movement using time_window=10y, "
-    "(4) build a timeline for the most suspicious host using time_window=10y. "
+    "(1) find the top ATT&CK techniques with the most affected hosts, "
+    "(2) look for credential access and LSASS activity, "
+    "(3) check for lateral movement, "
+    "(4) build a timeline for the most suspicious host. "
     "Map everything to MITRE ATT&CK and produce a complete IR report. "
     "Session ID: demo-001"
 )

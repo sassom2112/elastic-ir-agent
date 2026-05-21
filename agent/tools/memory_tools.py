@@ -82,49 +82,90 @@ def search_memory(
     top_k: int = 5,
 ) -> List[dict]:
     """
-    Search agent memory scoped strictly to session_id.
-    Cross-session queries are forbidden — each investigation is forensically isolated
-    to prevent IOC contamination and false attribution between unrelated cases.
+    Hybrid search over agent memory scoped strictly to session_id.
+
+    Uses ELSER semantic search (text_expansion) + BM25 keyword search combined
+    via Reciprocal Rank Fusion (RRF). Falls back to BM25-only if ELSER is not
+    deployed. Cross-session queries are forbidden — each investigation is
+    forensically isolated to prevent IOC contamination and false attribution.
     """
     client = get_client()
     index = os.getenv("ELASTIC_INDEX_MEMORY", "ir-agent-memory")
 
-    # session_id is always required and always applied as a hard filter
-    must_filters: list = [{"term": {"session_id": session_id}}]
+    session_filter: list = [{"term": {"session_id": session_id}}]
     if memory_type:
-        must_filters.append({"term": {"memory_type": memory_type}})
+        session_filter.append({"term": {"memory_type": memory_type}})
 
-    search_body = {
-        "size": top_k,
-        "query": {
-            "bool": {
-                "must": [
+    source_fields = ["content", "memory_type", "session_id", "@timestamp",
+                     "mitre_techniques", "affected_hosts", "confidence", "severity"]
+
+    # Hybrid: ELSER semantic + BM25 keyword, fused with RRF.
+    # Falls back to BM25-only if ELSER embeddings are not available on the index.
+    hybrid_body = {
+        "retriever": {
+            "rrf": {
+                "retrievers": [
                     {
-                        "multi_match": {
-                            "query": query,
-                            "fields": ["content", "content^2"],
+                        "standard": {
+                            "query": {
+                                "bool": {
+                                    "must": [{"match": {"content": query}}],
+                                    "filter": session_filter,
+                                }
+                            }
                         }
-                    }
+                    },
+                    {
+                        "standard": {
+                            "query": {
+                                "bool": {
+                                    "must": [{
+                                        "text_expansion": {
+                                            "content_vector": {
+                                                "model_id": ".elser_model_2",
+                                                "model_text": query,
+                                            }
+                                        }
+                                    }],
+                                    "filter": session_filter,
+                                }
+                            }
+                        }
+                    },
                 ],
-                "filter": must_filters,
+                "rank_window_size": max(top_k * 2, 20),
             }
         },
-        "_source": ["content", "memory_type", "session_id", "@timestamp",
-                    "mitre_techniques", "affected_hosts", "confidence", "severity"],
+        "size": top_k,
+        "_source": source_fields,
     }
 
     try:
-        resp = client.search(index=index, body=search_body)
+        resp = client.search(index=index, body=hybrid_body)
         return [
-            {
-                "score": hit["_score"],
-                "id": hit["_id"],
-                **hit["_source"],
-            }
+            {"score": hit.get("_rank", hit.get("_score", 0)), "id": hit["_id"], **hit["_source"]}
             for hit in resp["hits"]["hits"]
         ]
     except Exception:
-        return []
+        # Graceful degradation: ELSER not deployed, fall back to BM25
+        bm25_body = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [{"match": {"content": query}}],
+                    "filter": session_filter,
+                }
+            },
+            "_source": source_fields,
+        }
+        try:
+            resp = client.search(index=index, body=bm25_body)
+            return [
+                {"score": hit["_score"], "id": hit["_id"], **hit["_source"]}
+                for hit in resp["hits"]["hits"]
+            ]
+        except Exception:
+            return []
 
 
 if __name__ == "__main__":

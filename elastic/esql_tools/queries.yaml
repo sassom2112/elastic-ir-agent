@@ -1,57 +1,72 @@
 # ES|QL tool definitions for Elastic Agent Builder
 # Each entry becomes a callable MCP tool for the Gemini agent
+#
+# Parameter syntax:
+#   Agent Builder UI / MCP: ?param_name, time_window is INTEGER HOURS
+#   Local agent (Python):   {param_name} string like "24h", "10y"
+#
+# time_window examples for MCP calls:
+#   24       = 24 hours
+#   168      = 7 days
+#   720      = 30 days
+#   8760     = 1 year
+#   87600    = 10 years (use this for historical dataset)
 
 tools:
 
   - name: failed_logins_by_host
     description: >
-      Count failed login attempts grouped by host. Use this to detect brute force
-      activity or credential stuffing against specific machines.
+      Count failed login attempts grouped by host. Detects brute force and
+      credential stuffing. time_window is in hours (e.g. 24 = 1 day, 87600 = 10 years).
     parameters:
       - name: time_window
         type: string
-        default: "1h"
-        description: "Time window to look back, e.g. '1h', '24h', '7d'"
+        default: "24"
+        description: "Hours to look back (integer). Use 87600 for full historical dataset."
       - name: threshold
-        type: integer
-        default: 5
+        type: string
+        default: "5"
         description: "Minimum number of failures to include in results"
     esql: |
       FROM ir-events
-      | WHERE @timestamp >= NOW() - {time_window}
+      | EVAL diff_hours = DATE_DIFF("hours", @timestamp, NOW())
+      | WHERE diff_hours <= TO_INTEGER(?time_window)
       | WHERE event.code == "4625" OR event.action == "logon-failed"
       | STATS failure_count = COUNT(*) BY host.name, user.name
-      | WHERE failure_count >= {threshold}
+      | WHERE failure_count >= TO_INTEGER(?threshold)
       | SORT failure_count DESC
 
   - name: lateral_movement_detection
     description: >
-      Find evidence of lateral movement: successful logins from unusual source IPs,
-      remote service creation (event 7045), or SMB access (event 5140).
+      Find lateral movement: users logging into multiple hosts, remote service
+      creation, SMB access. time_window is in hours.
     parameters:
       - name: time_window
         type: string
-        default: "24h"
+        default: "24"
+        description: "Hours to look back (integer). Use 87600 for full historical dataset."
     esql: |
       FROM ir-events
-      | WHERE @timestamp >= NOW() - {time_window}
-      | WHERE event.code IN ("4624", "7045", "5140", "4648")
-        AND event.outcome == "success"
-      | STATS host_count = COUNT_DISTINCT(host.name) BY user.name, source.ip
+      | EVAL diff_hours = DATE_DIFF("hours", @timestamp, NOW())
+      | WHERE diff_hours <= TO_INTEGER(?time_window)
+      | WHERE event.code IN ("4624", "7045", "5140", "4648") AND event.outcome == "success"
+      | STATS host_count = COUNT_DISTINCT(host.name) BY user.name, network.source.ip
       | WHERE host_count > 1
       | SORT host_count DESC
 
   - name: credential_access_events
     description: >
-      Surface credential dumping and access events: LSASS access (event 4656),
-      SAM database reads, and known credential dumping tool signatures.
+      Surface credential dumping events: LSASS access (event 4656), SAM reads,
+      and known dumping tool signatures. time_window is in hours.
     parameters:
       - name: time_window
         type: string
-        default: "24h"
+        default: "24"
+        description: "Hours to look back (integer). Use 87600 for full historical dataset."
     esql: |
       FROM ir-events
-      | WHERE @timestamp >= NOW() - {time_window}
+      | EVAL diff_hours = DATE_DIFF("hours", @timestamp, NOW())
+      | WHERE diff_hours <= TO_INTEGER(?time_window)
       | WHERE event.code IN ("4656", "4663", "4704")
         OR (process.name IN ("mimikatz.exe", "procdump.exe", "lsass.exe")
             AND event.category == "process")
@@ -62,34 +77,39 @@ tools:
 
   - name: attack_timeline
     description: >
-      Build a chronological timeline of security events for a specific host
-      or user. Essential for reconstructing an attack chain.
+      Build a chronological event timeline for a host. Use * for all hosts.
+      time_window is in hours.
     parameters:
       - name: host_name
         type: string
-        description: "Hostname to investigate (use * for all hosts)"
+        default: "*"
+        description: "Hostname to investigate. Use * for all hosts."
       - name: time_window
         type: string
-        default: "24h"
+        default: "24"
+        description: "Hours to look back (integer). Use 87600 for full historical dataset."
     esql: |
       FROM ir-events
-      | WHERE @timestamp >= NOW() - {time_window}
-      | WHERE host.name == "{host_name}" OR "{host_name}" == "*"
+      | EVAL diff_hours = DATE_DIFF("hours", @timestamp, NOW())
+      | WHERE diff_hours <= TO_INTEGER(?time_window)
+      | WHERE host.name == ?host_name OR ?host_name == "*"
       | KEEP @timestamp, host.name, user.name, event.code, event.action,
              event.category, process.name, message, threat.technique.id
       | SORT @timestamp ASC
 
   - name: unique_hosts_by_technique
     description: >
-      Count how many unique hosts were affected by each MITRE ATT&CK technique.
-      Use this to understand the blast radius of an attack.
+      Count hosts affected by each MITRE ATT&CK technique. Shows blast radius.
+      time_window is in hours.
     parameters:
       - name: time_window
         type: string
-        default: "7d"
+        default: "168"
+        description: "Hours to look back (integer). Use 87600 for full historical dataset."
     esql: |
       FROM ir-events
-      | WHERE @timestamp >= NOW() - {time_window}
+      | EVAL diff_hours = DATE_DIFF("hours", @timestamp, NOW())
+      | WHERE diff_hours <= TO_INTEGER(?time_window)
       | WHERE threat.technique.id IS NOT NULL
       | STATS affected_hosts = COUNT_DISTINCT(host.name),
                event_count = COUNT(*)
@@ -98,15 +118,17 @@ tools:
 
   - name: suspicious_process_execution
     description: >
-      Find suspicious process executions: living-off-the-land binaries (LOLBins),
-      encoded PowerShell, or processes spawned from unusual parents.
+      Find LOLBin abuse, encoded PowerShell, and processes from unusual parents.
+      time_window is in hours.
     parameters:
       - name: time_window
         type: string
-        default: "24h"
+        default: "24"
+        description: "Hours to look back (integer). Use 87600 for full historical dataset."
     esql: |
       FROM ir-events
-      | WHERE @timestamp >= NOW() - {time_window}
+      | EVAL diff_hours = DATE_DIFF("hours", @timestamp, NOW())
+      | WHERE diff_hours <= TO_INTEGER(?time_window)
       | WHERE event.category == "process"
         AND (
           process.name IN ("powershell.exe", "cmd.exe", "wscript.exe",
