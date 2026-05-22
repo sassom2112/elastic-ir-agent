@@ -43,9 +43,16 @@ SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "system_prompt.md").read_te
 
 _TIME_WINDOW_RE = re.compile(r"^\d+[smhdwy]$")
 _HOST_NAME_RE = re.compile(r"^[\w\-\.\* ]+$")
+_ESQL_UNSAFE_RE = re.compile(r'["\';|`\\]')
 _MEMORY_CONTENT_MAX = 10_000
 _MEMORY_STRIP_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _ALLOWED_WRITE_INDEXES = frozenset({"ir-agent-memory"})
+# Fix 2: patterns that indicate prompt injection embedded in log data
+_INJECTION_RE = re.compile(
+    r"ignore\s+(previous|all|prior|above)|system\s+prompt|you\s+are\s+now"
+    r"|disregard|forget\s+(all|previous)|new\s+instructions",
+    re.IGNORECASE,
+)
 
 
 def _validate_tool_args(fn_name: str, fn_args: Dict) -> Optional[str]:
@@ -58,6 +65,8 @@ def _validate_tool_args(fn_name: str, fn_args: Dict) -> Optional[str]:
         val = str(fn_args["host_name"])
         if not _HOST_NAME_RE.match(val) or len(val) > 253:
             return f"Invalid host_name {val!r} — only alphanumeric, hyphens, dots, underscores, * allowed"
+        if _ESQL_UNSAFE_RE.search(val):
+            return f"Invalid host_name {val!r} — contains characters disallowed in ES|QL context"
     if "threshold" in fn_args:
         val = fn_args["threshold"]
         if not isinstance(val, int) or not (1 <= val <= 10_000):
@@ -70,6 +79,23 @@ def _validate_tool_args(fn_name: str, fn_args: Dict) -> Optional[str]:
         cleaned = _MEMORY_STRIP_RE.sub("", fn_args["content"])
         fn_args["content"] = cleaned[:_MEMORY_CONTENT_MAX]
     return None
+
+
+def _sanitize_tool_result(result: Any) -> Any:
+    """Suppress tool results that contain prompt injection patterns (Fix 2).
+
+    Raw log data — process command lines, registry values, file paths — flows
+    directly into the model's context window. An attacker who controlled a host
+    in the dataset could embed injection strings in event log fields. This runs
+    before the result is appended to the conversation history.
+    """
+    try:
+        text = json.dumps(result, default=str)
+    except Exception:
+        return result
+    if _INJECTION_RE.search(text):
+        return {"warning": "tool result suppressed — matched prompt injection pattern"}
+    return result
 
 
 def _run_esql(es: Elasticsearch, query: str) -> List[Dict]:
@@ -435,7 +461,8 @@ def run_investigation(prompt: str, session_id: str = "local-001",
                 t0 = time.monotonic()
                 fn = TOOL_FNS.get(fn_name)
                 es = es_write if fn_name == "write_memory" else es_read
-                result = fn(es, **fn_args) if fn else {"error": f"Unknown tool: {fn_name}"}
+                raw = fn(es, **fn_args) if fn else {"error": f"Unknown tool: {fn_name}"}
+                result = _sanitize_tool_result(raw)
                 log_tool_call(session_id, fn_name, fn_args, result,
                               duration_ms=int((time.monotonic() - t0) * 1000))
 

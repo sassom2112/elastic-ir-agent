@@ -1,11 +1,13 @@
 """
 Create or update the Elastic IR Agent in Google Cloud Agent Builder (Agent Engine).
 
-Agent Engine is the GA managed runtime for code-first agents under the
-Vertex AI Agent Builder product suite.
+Security fixes applied:
+  Fix 1 — ELASTIC_API_KEY stored in GCP Secret Manager, never in the pickle.
+  Fix 2 — Tool results sanitized for prompt injection before entering Gemini context.
+  Fix 3 — ES|QL string arguments validated against an injection character blocklist.
 
 Prerequisites:
-  pip install "google-cloud-aiplatform[agent_engines]" elasticsearch
+  pip install "google-cloud-aiplatform[agent_engines]" elasticsearch google-cloud-secret-manager
   gcloud auth application-default login
   gcloud config set project YOUR_PROJECT_ID
 
@@ -14,7 +16,9 @@ Run:
 """
 
 import os
+import re
 import sys
+import json
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -37,6 +41,16 @@ ELASTIC_KEY = os.getenv("ELASTIC_API_KEY")
 
 SYSTEM_PROMPT_PATH = Path(__file__).parent.parent / "agent" / "prompts" / "system_prompt.md"
 
+# Fix 2: prompt injection patterns that could be embedded in raw log data
+_INJECTION_RE = re.compile(
+    r"ignore\s+(previous|all|prior|above)|system\s+prompt|you\s+are\s+now"
+    r"|disregard|forget\s+(all|previous)|new\s+instructions",
+    re.IGNORECASE,
+)
+
+# Fix 3: characters that have meaning inside an ES|QL string context
+_ESQL_UNSAFE_RE = re.compile(r'["\';|`\\]')
+
 
 def validate_env() -> None:
     missing = [k for k in ["GOOGLE_PROJECT_ID", "ELASTIC_URL", "ELASTIC_API_KEY"] if not os.getenv(k)]
@@ -50,45 +64,88 @@ def get_system_prompt() -> str:
         return f.read()
 
 
-# ── Agent class (serialised into Agent Engine) ─────────────────────────────────
+# ── Fix 1: Secret Manager helper ───────────────────────────────────────────────
+
+def _ensure_secret(project_id: str, secret_name: str, secret_value: str) -> str:
+    """Store secret_value in Secret Manager and return the versioned resource ID.
+
+    Creates the secret if it doesn't exist, then adds a new version. The returned
+    resource ID is baked into the agent pickle — the actual key never is.
+    """
+    from google.cloud import secretmanager
+
+    client = secretmanager.SecretManagerServiceClient()
+    parent = f"projects/{project_id}"
+    secret_path = f"{parent}/secrets/{secret_name}"
+
+    try:
+        client.get_secret(name=secret_path)
+        print(f"  Secret {secret_name!r} already exists — adding new version.")
+    except Exception:
+        print(f"  Creating secret {secret_name!r} ...")
+        client.create_secret(
+            request={
+                "parent": parent,
+                "secret_id": secret_name,
+                "secret": {"replication": {"automatic": {}}},
+            }
+        )
+
+    client.add_secret_version(
+        request={
+            "parent": secret_path,
+            "payload": {"data": secret_value.encode()},
+        }
+    )
+
+    resource_id = f"{secret_path}/versions/latest"
+    print(f"  Secret stored → {resource_id}")
+    return resource_id
+
+
+# ── Agent class ────────────────────────────────────────────────────────────────
 
 class ElasticIRAgent:
     """
-    Agent Engine-compatible IR agent.
+    Agent Engine-compatible IR agent with three structural security controls:
 
-    Agent Engine unpickles this class inside the cloud runtime, calls set_up()
-    once to initialise the Vertex AI model and Elasticsearch client, then
-    routes user queries to query(). The full agentic tool-call loop runs here,
-    identical in logic to local_agent.py but using the Vertex AI SDK for
-    Gemini (no separate API key required — uses Application Default Credentials).
-
-    NOTE: elastic_api_key is stored in the Agent Engine pickle in GCS.
-    For production, move it to Secret Manager and fetch it in set_up().
+    Fix 1 — API key is never in the pickle. Only a Secret Manager resource ID
+             is stored. set_up() fetches the live key using ADC at runtime.
+    Fix 2 — Every tool result is scanned for prompt injection patterns before
+             being appended to the model's conversation context.
+    Fix 3 — ES|QL-bound string arguments are validated against an injection
+             character blocklist before any query is constructed.
     """
 
     def __init__(
         self,
         system_prompt: str,
         elastic_url: str,
-        elastic_api_key: str,
+        secret_resource_id: str,
         elastic_index_events: str = "ir-events",
         elastic_index_memory: str = "ir-agent-memory",
     ) -> None:
         self._system_prompt      = system_prompt
         self._elastic_url        = elastic_url
-        self._elastic_api_key    = elastic_api_key
+        self._secret_resource_id = secret_resource_id   # Fix 1: resource ID only
         self._index_events       = elastic_index_events
         self._index_memory       = elastic_index_memory
         self._model              = None
         self._es                 = None
 
-    # ── Initialisation (called once in cloud runtime) ──────────────────────────
+    # ── Initialisation ─────────────────────────────────────────────────────────
 
     def set_up(self) -> None:
+        from google.cloud import secretmanager
         from elasticsearch import Elasticsearch
         from vertexai.generative_models import FunctionDeclaration, GenerativeModel, Tool
 
-        self._es = Elasticsearch(self._elastic_url, api_key=self._elastic_api_key)
+        # Fix 1: fetch key from Secret Manager at runtime — never stored in pickle
+        sm = secretmanager.SecretManagerServiceClient()
+        resp = sm.access_secret_version(name=self._secret_resource_id)
+        elastic_api_key = resp.payload.data.decode()
+
+        self._es = Elasticsearch(self._elastic_url, api_key=elastic_api_key)
 
         declarations = [
             FunctionDeclaration(
@@ -107,9 +164,7 @@ class ElasticIRAgent:
                 description="Find users logging into multiple hosts, remote service creation, SMB access.",
                 parameters={
                     "type": "object",
-                    "properties": {
-                        "time_window": {"type": "string"},
-                    },
+                    "properties": {"time_window": {"type": "string"}},
                 },
             ),
             FunctionDeclaration(
@@ -117,9 +172,7 @@ class ElasticIRAgent:
                 description="Surface LSASS access, SAM reads, and known credential dumping tool signatures.",
                 parameters={
                     "type": "object",
-                    "properties": {
-                        "time_window": {"type": "string"},
-                    },
+                    "properties": {"time_window": {"type": "string"}},
                 },
             ),
             FunctionDeclaration(
@@ -138,9 +191,7 @@ class ElasticIRAgent:
                 description="Count hosts affected by each MITRE ATT&CK technique. Shows blast radius.",
                 parameters={
                     "type": "object",
-                    "properties": {
-                        "time_window": {"type": "string"},
-                    },
+                    "properties": {"time_window": {"type": "string"}},
                 },
             ),
             FunctionDeclaration(
@@ -148,9 +199,7 @@ class ElasticIRAgent:
                 description="Find LOLBin abuse, encoded PowerShell, and processes from unusual parents.",
                 parameters={
                     "type": "object",
-                    "properties": {
-                        "time_window": {"type": "string"},
-                    },
+                    "properties": {"time_window": {"type": "string"}},
                 },
             ),
             FunctionDeclaration(
@@ -174,7 +223,7 @@ class ElasticIRAgent:
                     "required": ["content", "memory_type", "session_id"],
                     "properties": {
                         "content":     {"type": "string"},
-                        "memory_type": {"type": "string", "description": "finding|summary|ioc|hypothesis|timeline_entry"},
+                        "memory_type": {"type": "string"},
                         "session_id":  {"type": "string"},
                         "confidence":  {"type": "number"},
                     },
@@ -188,6 +237,34 @@ class ElasticIRAgent:
             tools=[Tool(function_declarations=declarations)],
             generation_config={"temperature": 0.2, "max_output_tokens": 8192},
         )
+
+    # ── Fix 2: tool result sanitisation ───────────────────────────────────────
+
+    @staticmethod
+    def _sanitize(result: Any) -> Any:
+        """Block tool results that contain prompt injection patterns.
+
+        Raw Windows event log fields — command lines, registry values, file
+        paths — flow directly into the model context. An attacker who controlled
+        a host in the dataset could embed injection strings in those fields.
+        This runs before any result is appended to conversation history.
+        """
+        try:
+            text = json.dumps(result, default=str)
+        except Exception:
+            return result
+        if _INJECTION_RE.search(text):
+            return {"warning": "tool result suppressed — matched prompt injection pattern"}
+        return result
+
+    # ── Fix 3: ES|QL argument validation ──────────────────────────────────────
+
+    @staticmethod
+    def _validate_host(host_name: str) -> str | None:
+        """Return an error string if host_name contains ES|QL-unsafe characters."""
+        if _ESQL_UNSAFE_RE.search(host_name):
+            return f"Invalid host_name {host_name!r} — contains characters disallowed in ES|QL context"
+        return None
 
     # ── ES|QL helpers ──────────────────────────────────────────────────────────
 
@@ -238,6 +315,9 @@ FROM {self._index_events}
 
         if fn_name == "attack_timeline":
             host = fn_args.get("host_name", "*")
+            err = self._validate_host(host)   # Fix 3
+            if err:
+                return {"error": err}
             host_filter = f'| WHERE host.name == "{host}"' if host != "*" else ""
             return self._esql(f"""
 FROM {self._index_events}
@@ -310,10 +390,9 @@ FROM {self._index_events}
 
         return {"error": f"Unknown tool: {fn_name}"}
 
-    # ── Public query entry point ───────────────────────────────────────────────
+    # ── Public entry point ─────────────────────────────────────────────────────
 
     def query(self, *, input: str, session_id: str = "gcp-001") -> str:
-        """Run a full IR investigation and return the structured report."""
         if self._model is None:
             self.set_up()
 
@@ -326,7 +405,7 @@ FROM {self._index_events}
             response = self._model.generate_content(contents)
             candidate = response.candidates[0]
 
-            fn_calls  = [p for p in candidate.content.parts if p.function_call.name]
+            fn_calls   = [p for p in candidate.content.parts if p.function_call.name]
             text_parts = [p.text for p in candidate.content.parts
                           if hasattr(p, "text") and p.text]
 
@@ -345,7 +424,8 @@ FROM {self._index_events}
                 # Session isolation — memory tools always use this session's ID
                 if fn_name in ("search_memory", "write_memory"):
                     fn_args["session_id"] = session_id
-                result = self._execute_tool(fn_name, fn_args, session_id)
+                raw    = self._execute_tool(fn_name, fn_args, session_id)
+                result = self._sanitize(raw)   # Fix 2
                 fn_responses.append(
                     Part.from_function_response(name=fn_name, response={"result": result})
                 )
@@ -365,22 +445,28 @@ def create_agent() -> None:
         staging_bucket=f"gs://{PROJECT_ID}-vertex-staging",
     )
 
-    system_prompt = get_system_prompt()
-    index_events = os.getenv("ELASTIC_INDEX_EVENTS", "ir-events")
-    index_memory = os.getenv("ELASTIC_INDEX_MEMORY", "ir-agent-memory")
+    system_prompt   = get_system_prompt()
+    index_events    = os.getenv("ELASTIC_INDEX_EVENTS", "ir-events")
+    index_memory    = os.getenv("ELASTIC_INDEX_MEMORY", "ir-agent-memory")
+    secret_name     = os.getenv("ELASTIC_KEY_SECRET_NAME", "elastic-ir-agent-api-key")
 
     print(f"Deploying Elastic IR Agent to Agent Engine — {PROJECT_ID} / {REGION} ...")
+    print(f"Storing API key in Secret Manager as {secret_name!r} ...")
+
+    # Fix 1: push key to Secret Manager; only the resource ID goes into the pickle
+    secret_resource_id = _ensure_secret(PROJECT_ID, secret_name, ELASTIC_KEY)
 
     agent = agent_engines.create(
         ElasticIRAgent(
             system_prompt=system_prompt,
             elastic_url=ELASTIC_URL,
-            elastic_api_key=ELASTIC_KEY,
+            secret_resource_id=secret_resource_id,
             elastic_index_events=index_events,
             elastic_index_memory=index_memory,
         ),
         requirements=[
             "google-cloud-aiplatform[agent_engines]",
+            "google-cloud-secret-manager",
             "elasticsearch>=8.0.0",
         ],
         display_name="Elastic IR Agent — Incident Responder",
