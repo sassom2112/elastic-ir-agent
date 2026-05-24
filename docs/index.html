@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elastic IR Agent</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --orange: #db6d28;
+      --purple: #bc8cff;
+      --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 3rem 2rem 2.5rem;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .badge-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+    .badge {
+      font-size: .72rem; font-family: var(--mono); padding: .2rem .6rem;
+      border-radius: 2rem; border: 1px solid var(--border); color: var(--muted);
+    }
+    .badge.green { border-color: var(--green); color: var(--green); }
+    .badge.blue  { border-color: var(--accent); color: var(--accent); }
+    .badge.orange{ border-color: var(--orange); color: var(--orange); }
+    h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: .5rem; }
+    .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 640px; }
+    .cta-row { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn {
+      display: inline-block; padding: .55rem 1.2rem; border-radius: 6px;
+      font-size: .9rem; font-weight: 500; text-decoration: none; cursor: pointer;
+    }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+    main { max-width: 960px; margin: 0 auto; padding: 0 2rem 4rem; }
+    section { margin-top: 3rem; }
+    h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1rem; font-weight: 600; color: var(--muted); margin-bottom: .6rem; text-transform: uppercase; letter-spacing: .05em; }
+
+    .arch-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1.5rem; font-family: var(--mono); font-size: .8rem; color: var(--muted);
+      white-space: pre; overflow-x: auto; line-height: 1.7;
+    }
+    .arch-box .hi  { color: var(--accent); }
+    .arch-box .gr  { color: var(--green); }
+    .arch-box .or  { color: var(--orange); }
+
+    .stack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .75rem; }
+    .stack-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      padding: .9rem 1rem;
+    }
+    .stack-card .layer { font-size: .72rem; font-family: var(--mono); color: var(--muted); margin-bottom: .3rem; text-transform: uppercase; }
+    .stack-card .tech  { font-size: .9rem; font-weight: 500; }
+
+    .report-block {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1.5rem; font-family: var(--mono); font-size: .78rem; line-height: 1.8;
+      overflow-x: auto;
+    }
+    .report-block table { border-collapse: collapse; width: 100%; min-width: 680px; }
+    .report-block th { color: var(--muted); text-align: left; padding: .3rem .75rem; border-bottom: 1px solid var(--border); font-weight: 500; font-size: .72rem; text-transform: uppercase; }
+    .report-block td { padding: .35rem .75rem; border-bottom: 1px solid #21262d; vertical-align: top; }
+    .report-block tr:last-child td { border-bottom: none; }
+    .technique { color: var(--purple); }
+    .host     { color: var(--accent); }
+    .user     { color: var(--orange); }
+    .evidence { color: var(--muted); font-size: .73rem; }
+    .step-num { color: var(--green); font-weight: 700; }
+
+    .mitre-list { list-style: none; }
+    .mitre-list li {
+      padding: .6rem 0; border-bottom: 1px solid var(--border);
+      font-family: var(--mono); font-size: .8rem; display: flex; gap: 1rem; flex-wrap: wrap;
+    }
+    .mitre-list li:last-child { border-bottom: none; }
+    .tid { color: var(--purple); min-width: 90px; }
+    .tactic { color: var(--orange); min-width: 140px; }
+    .tevidence { color: var(--muted); }
+
+    .verdict-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .verdict-chip {
+      font-family: var(--mono); font-size: .85rem; padding: .4rem 1rem;
+      border-radius: 6px; font-weight: 600;
+    }
+    .v-verified  { background: #1a3326; color: var(--green); border: 1px solid var(--green); }
+    .v-refuted   { background: #2d1a1a; color: var(--red);   border: 1px solid var(--red); }
+    .v-unverifiable { background: #2d2510; color: var(--yellow); border: 1px solid var(--yellow); }
+
+    .security-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .security-table th { text-align: left; padding: .5rem .75rem; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); }
+    .security-table td { padding: .6rem .75rem; border-bottom: 1px solid #21262d; vertical-align: top; }
+    .security-table tr:last-child td { border-bottom: none; }
+    .control { font-family: var(--mono); font-size: .78rem; color: var(--accent); }
+
+    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: .85rem; max-width: 960px; margin: 0 auto; }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="badge-row">
+    <span class="badge green">Elastic Track</span>
+    <span class="badge blue">Google Cloud × Elastic Hackathon 2026</span>
+    <span class="badge orange">CRITICAL Severity</span>
+  </div>
+  <h1>Elastic IR Agent</h1>
+  <p class="subtitle">
+    An autonomous incident response agent that turns raw Windows attack telemetry into a structured,
+    evidence-backed IR report — no analyst in the loop.
+    Gemini 2.5 Flash reasons over 73,909 real attack events indexed in Elastic,
+    calls ES|QL detection tools via MCP, and runs an independent Forensic Auditor
+    that challenges every MITRE ATT&CK claim with fresh evidence.
+  </p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="https://github.com/sassom2112/Elastic-ir-agent">View on GitHub</a>
+    <a class="btn btn-secondary" href="https://github.com/sassom2112/Elastic-ir-agent/blob/master/reports/ir_report_demo-001_20260521T042836Z.md">Demo IR Report</a>
+  </div>
+</header>
+
+<main>
+
+  <section>
+    <h2>How It Works</h2>
+    <div class="arch-box"><span class="hi">Alert / prompt</span>
+      │
+      ▼
+<span class="gr">┌─────────────────────────────────────────────────┐</span>
+<span class="gr">│         Triage Agent (Gemini 2.5 Flash)         │</span>
+│                                                 │
+│  <span class="hi">Elastic MCP tools (via Cloud Run proxy + MCP):</span>  │
+│  · unique_hosts_by_technique  ← blast radius    │
+│  · credential_access_events   ← LSASS / SAM     │
+│  · suspicious_process_execution  ← LOLBins      │
+│  · lateral_movement_detection                   │
+│  · attack_timeline    ← per-host chain          │
+│  · failed_logins_by_host                        │
+│                                                 │
+│  <span class="hi">Elasticsearch memory (direct):</span>                  │
+│  · search_memory   ← prior context              │
+│  · write_memory    ← persist findings           │
+<span class="gr">└─────────────────────────────────────────────────┘</span>
+      │
+      │  IR Report (Attack Chain + MITRE + IOCs)
+      ▼
+<span class="or">┌─────────────────────────────────────────────────┐</span>
+<span class="or">│    Forensic Auditor (second Gemini pass)        │</span>
+│  — no shared context with Triage Agent          │
+│  — re-queries Elastic independently             │
+│  — labels each claim VERIFIED / REFUTED /       │
+│    UNVERIFIABLE with raw evidence citations     │
+<span class="or">└─────────────────────────────────────────────────┘</span>
+      │
+      ▼
+reports/ir_report_&lt;session&gt;_&lt;timestamp&gt;.md</div>
+  </section>
+
+  <section>
+    <h2>Stack</h2>
+    <div class="stack-grid">
+      <div class="stack-card"><div class="layer">Data</div><div class="tech">Elastic Cloud Serverless — 73,909 Windows attack events (ECS)</div></div>
+      <div class="stack-card"><div class="layer">Tools</div><div class="tech">Elastic Agent Builder — 6 ES|QL tools + memory, exposed via MCP</div></div>
+      <div class="stack-card"><div class="layer">MCP Proxy</div><div class="tech">Cloud Run — REST → MCP translation, auth injection</div></div>
+      <div class="stack-card"><div class="layer">Reasoning</div><div class="tech">Google Cloud Conversational Agents — Gemini 2.5 Flash</div></div>
+      <div class="stack-card"><div class="layer">Memory</div><div class="tech">Elasticsearch hybrid search — ELSER sparse vectors + BM25 via RRF</div></div>
+      <div class="stack-card"><div class="layer">Verification</div><div class="tech">Forensic Auditor — independent second Gemini pass, read-only tools</div></div>
+      <div class="stack-card"><div class="layer">Audit</div><div class="tech">Chain-of-custody JSONL — atomic append per tool call</div></div>
+      <div class="stack-card"><div class="layer">Dataset</div><div class="tech">EVTX-ATTACK-SAMPLES — 278 EVTX files, 2017–2023 Windows attacks</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Demo Output — Attack Chain</h2>
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
+      Real output from a full investigation across 73,909 events. Severity: <strong style="color:var(--red)">CRITICAL</strong> &nbsp;|&nbsp;
+      Timeframe: 2019-07-18 → 2021-12-07 &nbsp;|&nbsp; Hosts: MSEDGEWIN10, LAPTOP-JU4M3I0E, DESKTOP-TTEQ6PR
+    </p>
+    <div class="report-block">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Time</th><th>Host</th><th>Technique</th><th>Evidence</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="step-num">1</td><td>2019-07-19</td><td class="host">MSEDGEWIN10</td><td class="technique">T1543.003 — Windows Service</td><td class="evidence">AtomicService.exe created via AtomicRedTeam</td></tr>
+          <tr><td class="step-num">2</td><td>2019-07-19</td><td class="host">MSEDGEWIN10</td><td class="technique">T1490 — Inhibit System Recovery</td><td class="evidence">vssadmin.exe + wbadmin.exe</td></tr>
+          <tr><td class="step-num">3</td><td>2019-07-19</td><td class="host">MSEDGEWIN10</td><td class="technique">T1564.001 — Hidden Files</td><td class="evidence">bcdedit.exe execution</td></tr>
+          <tr><td class="step-num">4</td><td>2019-07-19</td><td class="host">MSEDGEWIN10</td><td class="technique">T1197 — BITS Jobs</td><td class="evidence">bitsadmin.exe execution</td></tr>
+          <tr><td class="step-num">5</td><td>2021-04-22</td><td class="host">MSEDGEWIN10</td><td class="technique">T1003.001 — LSASS Memory</td><td class="evidence">PPLdump.exe -v lsass lsass.dmp</td></tr>
+          <tr><td class="step-num">6</td><td>2021-08-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1566.001 — Spearphishing</td><td class="evidence">WINWORD.EXE opening stats.doc</td></tr>
+          <tr><td class="step-num">7</td><td>2021-08-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1218.007 — Mshta</td><td class="evidence">mshta.exe → memViewData.hta</td></tr>
+          <tr><td class="step-num">8</td><td>2021-08-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1218.011 — Rundll32</td><td class="evidence">rundll32.exe loading memViewData.jpg,PluginInit</td></tr>
+          <tr><td class="step-num">9</td><td>2021-08-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1059.003 — Windows CMD</td><td class="evidence">cmd.exe running KDECO.bat, deletes windir env key</td></tr>
+          <tr><td class="step-num">10</td><td>2021-12-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1003.001 — LSASS Memory</td><td class="evidence">MalSeclogon.exe -p 636 -d 2 → lsass.exe accessed</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>MITRE ATT&amp;CK Coverage</h2>
+    <ul class="mitre-list">
+      <li><span class="tid">T1003.001</span><span class="tactic">Credential Access</span><span class="tevidence">314 events, 6 hosts — PPLdump.exe, MalSeclogon.exe, samir.exe</span></li>
+      <li><span class="tid">T1566.001</span><span class="tactic">Initial Access</span><span class="tevidence">WINWORD.EXE opening stats.doc on MSEDGEWIN10</span></li>
+      <li><span class="tid">T1218.011</span><span class="tactic">Defense Evasion</span><span class="tevidence">rundll32.exe loading .jpg as DLL via mshta parent</span></li>
+      <li><span class="tid">T1490</span><span class="tactic">Impact</span><span class="tevidence">vssadmin.exe + wbadmin.exe — shadow copy deletion</span></li>
+      <li><span class="tid">T1055</span><span class="tactic">Privilege Escalation</span><span class="tevidence">208 events across 3 hosts — process injection</span></li>
+      <li><span class="tid">T1543.003</span><span class="tactic">Persistence</span><span class="tevidence">AtomicService.exe registered as Windows service</span></li>
+      <li><span class="tid">T1197</span><span class="tactic">C2 / Persistence</span><span class="tevidence">bitsadmin.exe — BITS job abuse</span></li>
+      <li><span class="tid">T1068</span><span class="tactic">Privilege Escalation</span><span class="tevidence">SpoolFool.exe (DESKTOP-TTEQ6PR), EfsPotato.exe (LAPTOP-JU4M3I0E)</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Forensic Auditor Result</h2>
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
+      A second independent Gemini pass re-queried Elastic with read-only tools and labeled every claim — no access to the Triage Agent's tool history.
+    </p>
+    <div class="verdict-row">
+      <span class="verdict-chip v-verified">Verified: 8</span>
+      <span class="verdict-chip v-refuted">Refuted: 8</span>
+      <span class="verdict-chip v-unverifiable">Unverifiable: 2</span>
+    </div>
+    <p style="color:var(--muted);font-size:.82rem;">
+      Every refuted claim cites the specific ES|QL query output that contradicted it.
+      Refutals are findings too — they narrow the confirmed attack surface and eliminate false positives before the report is saved.
+    </p>
+  </section>
+
+  <section>
+    <h2>Security Model</h2>
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
+      Bad actions are architecturally impossible — not instructed away.
+    </p>
+    <table class="security-table">
+      <thead><tr><th>Control</th><th>Implementation</th></tr></thead>
+      <tbody>
+        <tr><td class="control">Session isolation</td><td>search_memory hard-scoped to session_id at the Elasticsearch filter — model cannot query across investigations</td></tr>
+        <tr><td class="control">Input validation</td><td>time_window, host_name, threshold validated before any ES call — regex allowlist + DoS cap (100y max)</td></tr>
+        <tr><td class="control">Write allowlist</td><td>write_memory checks target index against hardcoded allowlist — misconfigured ELASTIC_INDEX_MEMORY is blocked at write time</td></tr>
+        <tr><td class="control">Content sanitization</td><td>write_memory strips control characters, caps at 10,000 chars — blocks indirect prompt injection via poisoned retrieval</td></tr>
+        <tr><td class="control">Split API keys</td><td>ELASTIC_API_KEY_READ (ES|QL) and ELASTIC_API_KEY_WRITE (memory index only) — separate scoped keys</td></tr>
+        <tr><td class="control">Structural labeling</td><td>Tool results wrapped with _provenance metadata — model cannot mistake retrieved data for instructions</td></tr>
+        <tr><td class="control">Audit log</td><td>Every tool call atomically appended to audit_log.jsonl via os.open/os.write — blocked calls log the rejection reason</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<footer>
+  <p>
+    <a href="https://github.com/sassom2112/Elastic-ir-agent">GitHub</a> &nbsp;·&nbsp;
+    MIT License &nbsp;·&nbsp;
+    Dataset: <a href="https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES">EVTX-ATTACK-SAMPLES</a> by Samir Bousseaden &nbsp;·&nbsp;
+    Google Cloud × Elastic Agent Builder Hackathon 2026
+  </p>
+</footer>
+
+</body>
+</html>
