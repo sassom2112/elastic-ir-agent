@@ -138,37 +138,7 @@
 
   <section>
     <h2>How It Works</h2>
-    <div class="arch-box"><span class="hi">Alert / prompt</span>
-      │
-      ▼
-<span class="gr">┌─────────────────────────────────────────────────┐</span>
-<span class="gr">│         Triage Agent (Gemini 2.5 Flash)         │</span>
-│                                                 │
-│  <span class="hi">Elastic MCP tools (via Cloud Run proxy + MCP):</span>  │
-│  · unique_hosts_by_technique  ← blast radius    │
-│  · credential_access_events   ← LSASS / SAM     │
-│  · suspicious_process_execution  ← LOLBins      │
-│  · lateral_movement_detection                   │
-│  · attack_timeline    ← per-host chain          │
-│  · failed_logins_by_host                        │
-│                                                 │
-│  <span class="hi">Elasticsearch memory (direct):</span>                  │
-│  · search_memory   ← prior context              │
-│  · write_memory    ← persist findings           │
-<span class="gr">└─────────────────────────────────────────────────┘</span>
-      │
-      │  IR Report (Attack Chain + MITRE + IOCs)
-      ▼
-<span class="or">┌─────────────────────────────────────────────────┐</span>
-<span class="or">│    Forensic Auditor (second Gemini pass)        │</span>
-│  — no shared context with Triage Agent          │
-│  — re-queries Elastic independently             │
-│  — labels each claim VERIFIED / REFUTED /       │
-│    UNVERIFIABLE with raw evidence citations     │
-<span class="or">└─────────────────────────────────────────────────┘</span>
-      │
-      ▼
-reports/ir_report_&lt;session&gt;_&lt;timestamp&gt;.md</div>
+    <img src="images/architecture.png" alt="Architecture diagram" style="width:100%;border-radius:8px;border:1px solid var(--border);" />
   </section>
 
   <section>
@@ -186,44 +156,11 @@ reports/ir_report_&lt;session&gt;_&lt;timestamp&gt;.md</div>
   </section>
 
   <section>
-    <h2>Demo Output — Attack Chain</h2>
+    <h2>Demo Output</h2>
     <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
-      Real output from a full investigation across 73,909 events. Severity: <strong style="color:var(--red)">CRITICAL</strong> &nbsp;|&nbsp;
-      Timeframe: 2019-07-18 → 2021-12-07 &nbsp;|&nbsp; Hosts: MSEDGEWIN10, LAPTOP-JU4M3I0E, DESKTOP-TTEQ6PR
+      Real output from a full investigation across 73,909 events — attack chain, MITRE mapping, and Forensic Auditor verdict.
     </p>
-    <div class="report-block">
-      <table>
-        <thead>
-          <tr><th>#</th><th>Time</th><th>Host</th><th>Technique</th><th>Evidence</th></tr>
-        </thead>
-        <tbody>
-          <tr><td class="step-num">1</td><td>2019-07-19</td><td class="host">MSEDGEWIN10</td><td class="technique">T1543.003 — Windows Service</td><td class="evidence">AtomicService.exe created via AtomicRedTeam</td></tr>
-          <tr><td class="step-num">2</td><td>2019-07-19</td><td class="host">MSEDGEWIN10</td><td class="technique">T1490 — Inhibit System Recovery</td><td class="evidence">vssadmin.exe + wbadmin.exe</td></tr>
-          <tr><td class="step-num">3</td><td>2019-07-19</td><td class="host">MSEDGEWIN10</td><td class="technique">T1564.001 — Hidden Files</td><td class="evidence">bcdedit.exe execution</td></tr>
-          <tr><td class="step-num">4</td><td>2019-07-19</td><td class="host">MSEDGEWIN10</td><td class="technique">T1197 — BITS Jobs</td><td class="evidence">bitsadmin.exe execution</td></tr>
-          <tr><td class="step-num">5</td><td>2021-04-22</td><td class="host">MSEDGEWIN10</td><td class="technique">T1003.001 — LSASS Memory</td><td class="evidence">PPLdump.exe -v lsass lsass.dmp</td></tr>
-          <tr><td class="step-num">6</td><td>2021-08-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1566.001 — Spearphishing</td><td class="evidence">WINWORD.EXE opening stats.doc</td></tr>
-          <tr><td class="step-num">7</td><td>2021-08-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1218.007 — Mshta</td><td class="evidence">mshta.exe → memViewData.hta</td></tr>
-          <tr><td class="step-num">8</td><td>2021-08-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1218.011 — Rundll32</td><td class="evidence">rundll32.exe loading memViewData.jpg,PluginInit</td></tr>
-          <tr><td class="step-num">9</td><td>2021-08-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1059.003 — Windows CMD</td><td class="evidence">cmd.exe running KDECO.bat, deletes windir env key</td></tr>
-          <tr><td class="step-num">10</td><td>2021-12-07</td><td class="host">MSEDGEWIN10</td><td class="technique">T1003.001 — LSASS Memory</td><td class="evidence">MalSeclogon.exe -p 636 -d 2 → lsass.exe accessed</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section>
-    <h2>MITRE ATT&amp;CK Coverage</h2>
-    <ul class="mitre-list">
-      <li><span class="tid">T1003.001</span><span class="tactic">Credential Access</span><span class="tevidence">314 events, 6 hosts — PPLdump.exe, MalSeclogon.exe, samir.exe</span></li>
-      <li><span class="tid">T1566.001</span><span class="tactic">Initial Access</span><span class="tevidence">WINWORD.EXE opening stats.doc on MSEDGEWIN10</span></li>
-      <li><span class="tid">T1218.011</span><span class="tactic">Defense Evasion</span><span class="tevidence">rundll32.exe loading .jpg as DLL via mshta parent</span></li>
-      <li><span class="tid">T1490</span><span class="tactic">Impact</span><span class="tevidence">vssadmin.exe + wbadmin.exe — shadow copy deletion</span></li>
-      <li><span class="tid">T1055</span><span class="tactic">Privilege Escalation</span><span class="tevidence">208 events across 3 hosts — process injection</span></li>
-      <li><span class="tid">T1543.003</span><span class="tactic">Persistence</span><span class="tevidence">AtomicService.exe registered as Windows service</span></li>
-      <li><span class="tid">T1197</span><span class="tactic">C2 / Persistence</span><span class="tevidence">bitsadmin.exe — BITS job abuse</span></li>
-      <li><span class="tid">T1068</span><span class="tactic">Privilege Escalation</span><span class="tevidence">SpoolFool.exe (DESKTOP-TTEQ6PR), EfsPotato.exe (LAPTOP-JU4M3I0E)</span></li>
-    </ul>
+    <img src="images/ir_report_demo.png" alt="IR Report demo output" style="width:100%;border-radius:8px;border:1px solid var(--border);" />
   </section>
 
   <section>
@@ -244,21 +181,7 @@ reports/ir_report_&lt;session&gt;_&lt;timestamp&gt;.md</div>
 
   <section>
     <h2>Security Model</h2>
-    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
-      Bad actions are architecturally impossible — not instructed away.
-    </p>
-    <table class="security-table">
-      <thead><tr><th>Control</th><th>Implementation</th></tr></thead>
-      <tbody>
-        <tr><td class="control">Session isolation</td><td>search_memory hard-scoped to session_id at the Elasticsearch filter — model cannot query across investigations</td></tr>
-        <tr><td class="control">Input validation</td><td>time_window, host_name, threshold validated before any ES call — regex allowlist + DoS cap (100y max)</td></tr>
-        <tr><td class="control">Write allowlist</td><td>write_memory checks target index against hardcoded allowlist — misconfigured ELASTIC_INDEX_MEMORY is blocked at write time</td></tr>
-        <tr><td class="control">Content sanitization</td><td>write_memory strips control characters, caps at 10,000 chars — blocks indirect prompt injection via poisoned retrieval</td></tr>
-        <tr><td class="control">Split API keys</td><td>ELASTIC_API_KEY_READ (ES|QL) and ELASTIC_API_KEY_WRITE (memory index only) — separate scoped keys</td></tr>
-        <tr><td class="control">Structural labeling</td><td>Tool results wrapped with _provenance metadata — model cannot mistake retrieved data for instructions</td></tr>
-        <tr><td class="control">Audit log</td><td>Every tool call atomically appended to audit_log.jsonl via os.open/os.write — blocked calls log the rejection reason</td></tr>
-      </tbody>
-    </table>
+    <img src="images/security_model.png" alt="Security model table" style="width:100%;border-radius:8px;border:1px solid var(--border);" />
   </section>
 
 </main>
