@@ -33,33 +33,74 @@
       font-size: .72rem; font-family: var(--mono); padding: .2rem .6rem;
       border-radius: 2rem; border: 1px solid var(--border); color: var(--muted);
     }
-    .badge.green { border-color: var(--green); color: var(--green); }
-    .badge.blue  { border-color: var(--accent); color: var(--accent); }
-    .badge.orange{ border-color: var(--orange); color: var(--orange); }
+    .badge.green  { border-color: var(--green);  color: var(--green); }
+    .badge.blue   { border-color: var(--accent); color: var(--accent); }
+    .badge.orange { border-color: var(--orange); color: var(--orange); }
+    .badge.red    { border-color: var(--red);    color: var(--red); }
+
     h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: .5rem; }
-    .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 640px; }
+    .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 680px; line-height: 1.7; }
     .cta-row { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
     .btn {
       display: inline-block; padding: .55rem 1.2rem; border-radius: 6px;
       font-size: .9rem; font-weight: 500; text-decoration: none; cursor: pointer;
     }
-    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-primary   { background: var(--accent); color: #0d1117; }
     .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
     main { max-width: 960px; margin: 0 auto; padding: 0 2rem 4rem; }
     section { margin-top: 3rem; }
     h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
-    h3 { font-size: 1rem; font-weight: 600; color: var(--muted); margin-bottom: .6rem; text-transform: uppercase; letter-spacing: .05em; }
 
-    .arch-box {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-      padding: 1.5rem; font-family: var(--mono); font-size: .8rem; color: var(--muted);
-      white-space: pre; overflow-x: auto; line-height: 1.7;
+    /* ── Forensic Auditor hero ── */
+    .auditor-hero {
+      background: #0e1a12;
+      border: 1px solid var(--green);
+      border-radius: 10px;
+      padding: 2rem 2rem 1.75rem;
+      margin-top: 2.5rem;
     }
-    .arch-box .hi  { color: var(--accent); }
-    .arch-box .gr  { color: var(--green); }
-    .arch-box .or  { color: var(--orange); }
+    .auditor-hero .eyebrow {
+      font-family: var(--mono); font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--green); margin-bottom: .6rem;
+    }
+    .auditor-hero h2 {
+      font-size: 1.45rem; font-weight: 700; color: var(--text);
+      border: none; padding: 0; margin-bottom: .6rem;
+    }
+    .auditor-hero .tagline {
+      color: var(--muted); font-size: 1rem; max-width: 640px; margin-bottom: 1.5rem;
+    }
+    .verdict-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    .verdict-chip {
+      font-family: var(--mono); font-size: 1rem; padding: .5rem 1.25rem;
+      border-radius: 6px; font-weight: 700;
+    }
+    .v-verified     { background: #1a3326; color: var(--green);  border: 1px solid var(--green); }
+    .v-refuted      { background: #2d1a1a; color: var(--red);    border: 1px solid var(--red); }
+    .v-unverifiable { background: #2d2510; color: var(--yellow); border: 1px solid var(--yellow); }
+    .auditor-detail {
+      font-family: var(--mono); font-size: .82rem; color: var(--muted);
+      border-top: 1px solid #1e3020; padding-top: 1rem; line-height: 1.7;
+    }
+    .auditor-detail strong { color: var(--text); }
 
+    /* ── How it works two-col ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+    .flow-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1.1rem 1.2rem;
+    }
+    .flow-card .step { font-family: var(--mono); font-size: .72rem; color: var(--muted); margin-bottom: .35rem; text-transform: uppercase; letter-spacing: .06em; }
+    .flow-card .label { font-size: .95rem; font-weight: 600; margin-bottom: .3rem; }
+    .flow-card .desc { font-size: .82rem; color: var(--muted); line-height: 1.55; }
+    .flow-card.green  { border-color: #244d2a; }
+    .flow-card.orange { border-color: #4d2e14; }
+    .flow-card.blue   { border-color: #1a3050; }
+    .flow-card.purple { border-color: #3a2060; }
+
+    /* ── Stack grid ── */
     .stack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .75rem; }
     .stack-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
@@ -68,45 +109,15 @@
     .stack-card .layer { font-size: .72rem; font-family: var(--mono); color: var(--muted); margin-bottom: .3rem; text-transform: uppercase; }
     .stack-card .tech  { font-size: .9rem; font-weight: 500; }
 
-    .report-block {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-      padding: 1.5rem; font-family: var(--mono); font-size: .78rem; line-height: 1.8;
-      overflow-x: auto;
+    /* ── Security controls ── */
+    .control-list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+    @media (max-width: 640px) { .control-list { grid-template-columns: 1fr; } }
+    .control-item {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      padding: .85rem 1rem;
     }
-    .report-block table { border-collapse: collapse; width: 100%; min-width: 680px; }
-    .report-block th { color: var(--muted); text-align: left; padding: .3rem .75rem; border-bottom: 1px solid var(--border); font-weight: 500; font-size: .72rem; text-transform: uppercase; }
-    .report-block td { padding: .35rem .75rem; border-bottom: 1px solid #21262d; vertical-align: top; }
-    .report-block tr:last-child td { border-bottom: none; }
-    .technique { color: var(--purple); }
-    .host     { color: var(--accent); }
-    .user     { color: var(--orange); }
-    .evidence { color: var(--muted); font-size: .73rem; }
-    .step-num { color: var(--green); font-weight: 700; }
-
-    .mitre-list { list-style: none; }
-    .mitre-list li {
-      padding: .6rem 0; border-bottom: 1px solid var(--border);
-      font-family: var(--mono); font-size: .8rem; display: flex; gap: 1rem; flex-wrap: wrap;
-    }
-    .mitre-list li:last-child { border-bottom: none; }
-    .tid { color: var(--purple); min-width: 90px; }
-    .tactic { color: var(--orange); min-width: 140px; }
-    .tevidence { color: var(--muted); }
-
-    .verdict-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-    .verdict-chip {
-      font-family: var(--mono); font-size: .85rem; padding: .4rem 1rem;
-      border-radius: 6px; font-weight: 600;
-    }
-    .v-verified  { background: #1a3326; color: var(--green); border: 1px solid var(--green); }
-    .v-refuted   { background: #2d1a1a; color: var(--red);   border: 1px solid var(--red); }
-    .v-unverifiable { background: #2d2510; color: var(--yellow); border: 1px solid var(--yellow); }
-
-    .security-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    .security-table th { text-align: left; padding: .5rem .75rem; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); }
-    .security-table td { padding: .6rem .75rem; border-bottom: 1px solid #21262d; vertical-align: top; }
-    .security-table tr:last-child td { border-bottom: none; }
-    .control { font-family: var(--mono); font-size: .78rem; color: var(--accent); }
+    .control-item .ctrl-name { font-family: var(--mono); font-size: .8rem; color: var(--accent); font-weight: 600; margin-bottom: .25rem; }
+    .control-item .ctrl-desc { font-size: .8rem; color: var(--muted); line-height: 1.5; }
 
     footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: .85rem; max-width: 960px; margin: 0 auto; }
     footer a { color: var(--accent); text-decoration: none; }
@@ -118,15 +129,14 @@
   <div class="badge-row">
     <span class="badge green">Elastic Track</span>
     <span class="badge blue">Google Cloud × Elastic Hackathon 2026</span>
-    <span class="badge orange">CRITICAL Severity</span>
+    <span class="badge red">CRITICAL Severity</span>
+    <span class="badge orange">73,909 real attack events</span>
   </div>
   <h1>Elastic IR Agent</h1>
   <p class="subtitle">
-    An autonomous incident response agent that turns raw Windows attack telemetry into a structured,
-    evidence-backed IR report — no analyst in the loop.
-    Gemini 2.5 Flash reasons over 73,909 real attack events indexed in Elastic,
-    calls ES|QL detection tools via MCP, and runs an independent Forensic Auditor
-    that challenges every MITRE ATT&CK claim with fresh evidence.
+    An AI that investigates Windows attacks across 73,909 real events —
+    then runs a second independent AI pass that challenges every finding it just produced,
+    citing the raw ES|QL evidence that confirms or refutes each claim.
   </p>
   <div class="cta-row">
     <a class="btn btn-primary" href="https://github.com/sassom2112/Elastic-ir-agent">View on GitHub</a>
@@ -136,17 +146,71 @@
 
 <main>
 
+  <!-- ── FORENSIC AUDITOR — HERO ── -->
+  <div class="auditor-hero">
+    <div class="eyebrow">The core contribution</div>
+    <h2>An AI that checks its own report against raw evidence</h2>
+    <p class="tagline">
+      After the Triage Agent produces an IR report, a second independent Gemini instance
+      re-queries Elasticsearch with read-only tools — no access to the first agent's history —
+      and labels every MITRE ATT&amp;CK claim with evidence.
+    </p>
+    <div class="verdict-row">
+      <span class="verdict-chip v-verified">Verified &nbsp;8</span>
+      <span class="verdict-chip v-refuted">Refuted &nbsp;8</span>
+      <span class="verdict-chip v-unverifiable">Unverifiable &nbsp;2</span>
+    </div>
+    <div class="auditor-detail">
+      <strong>Refutals are findings.</strong> Each refuted claim cites the exact ES|QL query output that contradicted it —
+      narrowing the confirmed attack surface and eliminating false positives before the report is saved.
+      Most AI security tools produce a report and stop. This one adversarially verifies its own output.
+    </div>
+  </div>
+
+  <!-- ── HOW IT WORKS ── -->
   <section>
     <h2>How It Works</h2>
-    <img src="images/architecture.png" alt="Architecture diagram" style="width:100%;border-radius:8px;border:1px solid var(--border);" />
+    <img src="images/architecture.png" alt="Architecture diagram" style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:1.25rem;" />
+    <div class="two-col">
+      <div class="flow-card green">
+        <div class="step">Step 1 — Triage Agent</div>
+        <div class="label">Gemini 2.5 Flash investigates</div>
+        <div class="desc">Calls 6 ES|QL detection tools via Elastic Agent Builder MCP — blast radius, credential access, process injection, lateral movement, attack timeline.</div>
+      </div>
+      <div class="flow-card blue">
+        <div class="step">Step 2 — IR Report</div>
+        <div class="label">Structured evidence-backed report</div>
+        <div class="desc">Attack chain table, MITRE ATT&amp;CK mapping, affected assets, and IOCs — each claim tied to a specific tool result.</div>
+      </div>
+      <div class="flow-card orange">
+        <div class="step">Step 3 — Forensic Auditor</div>
+        <div class="label">Independent second Gemini pass</div>
+        <div class="desc">Re-queries Elastic with read-only tools. Labels every claim VERIFIED / REFUTED / UNVERIFIABLE with the ES|QL evidence that decided it.</div>
+      </div>
+      <div class="flow-card purple">
+        <div class="step">Step 4 — Audit Trail</div>
+        <div class="label">Chain-of-custody JSONL</div>
+        <div class="desc">Every tool call atomically appended to audit_log.jsonl via os.open/os.write. Rejected calls log the reason; allowed calls log duration.</div>
+      </div>
+    </div>
   </section>
 
+  <!-- ── DEMO OUTPUT ── -->
+  <section>
+    <h2>Demo Output</h2>
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
+      Real output from a full investigation — attack chain, MITRE mapping, and Forensic Auditor verdict across 73,909 events.
+    </p>
+    <img src="images/ir_report_demo.png" alt="IR Report demo output" style="width:100%;border-radius:8px;border:1px solid var(--border);" />
+  </section>
+
+  <!-- ── STACK ── -->
   <section>
     <h2>Stack</h2>
     <div class="stack-grid">
       <div class="stack-card"><div class="layer">Data</div><div class="tech">Elastic Cloud Serverless — 73,909 Windows attack events (ECS)</div></div>
       <div class="stack-card"><div class="layer">Tools</div><div class="tech">Elastic Agent Builder — 6 ES|QL tools + memory, exposed via MCP</div></div>
-      <div class="stack-card"><div class="layer">MCP Proxy</div><div class="tech">Cloud Run — REST → MCP translation, auth injection</div></div>
+      <div class="stack-card"><div class="layer">MCP Proxy</div><div class="tech">Cloud Run — REST → MCP translation, auth injection, type coercion</div></div>
       <div class="stack-card"><div class="layer">Reasoning</div><div class="tech">Google Cloud Conversational Agents — Gemini 2.5 Flash</div></div>
       <div class="stack-card"><div class="layer">Memory</div><div class="tech">Elasticsearch hybrid search — ELSER sparse vectors + BM25 via RRF</div></div>
       <div class="stack-card"><div class="layer">Verification</div><div class="tech">Forensic Auditor — independent second Gemini pass, read-only tools</div></div>
@@ -155,33 +219,39 @@
     </div>
   </section>
 
-  <section>
-    <h2>Demo Output</h2>
-    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
-      Real output from a full investigation across 73,909 events — attack chain, MITRE mapping, and Forensic Auditor verdict.
-    </p>
-    <img src="images/ir_report_demo.png" alt="IR Report demo output" style="width:100%;border-radius:8px;border:1px solid var(--border);" />
-  </section>
-
-  <section>
-    <h2>Forensic Auditor Result</h2>
-    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
-      A second independent Gemini pass re-queried Elastic with read-only tools and labeled every claim — no access to the Triage Agent's tool history.
-    </p>
-    <div class="verdict-row">
-      <span class="verdict-chip v-verified">Verified: 8</span>
-      <span class="verdict-chip v-refuted">Refuted: 8</span>
-      <span class="verdict-chip v-unverifiable">Unverifiable: 2</span>
-    </div>
-    <p style="color:var(--muted);font-size:.82rem;">
-      Every refuted claim cites the specific ES|QL query output that contradicted it.
-      Refutals are findings too — they narrow the confirmed attack surface and eliminate false positives before the report is saved.
-    </p>
-  </section>
-
+  <!-- ── SECURITY MODEL ── -->
   <section>
     <h2>Security Model</h2>
-    <img src="images/security_model.png" alt="Security model table" style="width:100%;border-radius:8px;border:1px solid var(--border);" />
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:1.25rem;">
+      Bad actions are architecturally impossible — not instructed away.
+    </p>
+    <img src="images/security_model.png" alt="Security model" style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:1.25rem;" />
+    <ul class="control-list">
+      <li class="control-item">
+        <div class="ctrl-name">Session isolation</div>
+        <div class="ctrl-desc">search_memory scoped to session_id at the ES filter. Model cannot query across investigations — physically blocked, not instructed away.</div>
+      </li>
+      <li class="control-item">
+        <div class="ctrl-name">Input validation</div>
+        <div class="ctrl-desc">time_window: regex + 100-year DoS cap. host_name: alphanumeric allowlist + ES|QL char blocklist. Integers range-checked before any ES call.</div>
+      </li>
+      <li class="control-item">
+        <div class="ctrl-name">Write allowlist</div>
+        <div class="ctrl-desc">write_memory checks target index against a hardcoded allowlist at write time. Misconfiguring ELASTIC_INDEX_MEMORY is blocked in code, not config.</div>
+      </li>
+      <li class="control-item">
+        <div class="ctrl-name">Content sanitization</div>
+        <div class="ctrl-desc">write_memory strips control characters, caps at 10,000 chars. Blocks indirect prompt injection via poisoned retrieval results.</div>
+      </li>
+      <li class="control-item">
+        <div class="ctrl-name">Split API keys</div>
+        <div class="ctrl-desc">ELASTIC_API_KEY_READ for ES|QL queries. ELASTIC_API_KEY_WRITE for memory index only. Read path cannot write.</div>
+      </li>
+      <li class="control-item">
+        <div class="ctrl-name">Chain-of-custody log</div>
+        <div class="ctrl-desc">Every tool call atomically appended via os.open/os.write. Blocked calls log rejection reason; allowed calls log duration.</div>
+      </li>
+    </ul>
   </section>
 
 </main>
