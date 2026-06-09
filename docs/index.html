@@ -3,490 +3,390 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Elastic IR Agent — Forensic Auditor</title>
+  <title>Elastic IR Agent</title>
   <style>
     :root {
-      --bg:      #0d1117;
-      --surf:    #161b22;
-      --surf2:   #1c2128;
-      --border:  #30363d;
-      --text:    #e6edf3;
-      --muted:   #8b949e;
-      --accent:  #58a6ff;
-      --green:   #3fb950;
-      --red:     #f85149;
-      --yellow:  #d29922;
-      --orange:  #db6d28;
-      --purple:  #bc8cff;
+      --bg:     #0d1117;
+      --surf:   #161b22;
+      --border: #21262d;
+      --text:   #e6edf3;
+      --muted:  #8b949e;
+      --dim:    #484f58;
+      --blue:   #58a6ff;
+      --green:  #3fb950;
+      --red:    #f85149;
+      --yellow: #d29922;
+      --orange: #db6d28;
+      --purple: #bc8cff;
       --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; }
-
-    /* ── layout ── */
-    .page { max-width: 980px; margin: 0 auto; padding: 0 1.5rem; }
-    section { margin-top: 4rem; }
-    h2 {
-      font-size: 1.1rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .08em; color: var(--muted);
-      margin-bottom: 1.25rem; padding-bottom: .5rem;
-      border-bottom: 1px solid var(--border);
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
     }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      font-family: var(--mono);
+      font-size: .85em;
+      background: var(--surf);
+      padding: .1em .35em;
+      border-radius: 3px;
+    }
+
+    .wrap { max-width: 800px; margin: 0 auto; padding: 0 1.5rem; }
 
     /* ── header ── */
-    header { padding: 3.5rem 0 0; border-bottom: 1px solid var(--border); margin-bottom: 0; }
-    .badges { display: flex; gap: .45rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
-    .badge {
-      font-size: .68rem; font-family: var(--mono); padding: .18rem .55rem;
-      border-radius: 2rem; border: 1px solid var(--border); color: var(--muted);
+    header { padding: 4rem 0 2.5rem; border-bottom: 1px solid var(--border); }
+    .meta {
+      font-family: var(--mono); font-size: .72rem;
+      color: var(--dim); letter-spacing: .04em;
+      text-transform: uppercase; margin-bottom: 1rem;
     }
-    .badge.g { border-color: var(--green);  color: var(--green); }
-    .badge.b { border-color: var(--accent); color: var(--accent); }
-    .badge.r { border-color: var(--red);    color: var(--red); }
-    .badge.o { border-color: var(--orange); color: var(--orange); }
-    .badge.p { border-color: var(--purple); color: var(--purple); }
+    .meta span { color: var(--muted); }
+    h1 {
+      font-size: 2rem; font-weight: 700; line-height: 1.2;
+      letter-spacing: -.02em; margin-bottom: 1rem;
+    }
+    .abstract {
+      color: var(--muted); font-size: .95rem; max-width: 660px;
+      line-height: 1.75; margin-bottom: 1.5rem;
+    }
+    .links { display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: .88rem; }
+    .links a {
+      display: flex; align-items: center; gap: .35rem;
+      color: var(--muted); border-bottom: 1px solid var(--border);
+      padding-bottom: 1px;
+    }
+    .links a:hover { color: var(--text); border-color: var(--muted); text-decoration: none; }
 
-    h1 { font-size: 2.6rem; font-weight: 800; line-height: 1.15; margin-bottom: .65rem; letter-spacing: -.02em; }
-    h1 em { font-style: normal; color: var(--accent); }
-    .lead { color: var(--muted); font-size: 1.05rem; max-width: 660px; line-height: 1.75; }
+    /* ── sections ── */
+    section { padding: 2.75rem 0; border-bottom: 1px solid var(--border); }
+    section:last-of-type { border-bottom: none; }
+    h2 {
+      font-size: .72rem; font-family: var(--mono);
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--dim); margin-bottom: 1.25rem;
+    }
+    h3 { font-size: 1rem; font-weight: 600; margin-bottom: .5rem; color: var(--text); }
+    p { color: var(--muted); margin-bottom: .85rem; }
+    p:last-child { margin-bottom: 0; }
 
-    .cta-row { display: flex; gap: .75rem; margin: 1.5rem 0 2.5rem; flex-wrap: wrap; }
-    .btn {
-      display: inline-block; padding: .5rem 1.1rem; border-radius: 6px;
-      font-size: .88rem; font-weight: 500; text-decoration: none;
+    /* ── key result ── */
+    .key-result {
+      border-left: 2px solid var(--blue);
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+      background: #0f1922;
     }
-    .btn-primary   { background: var(--accent); color: #0d1117; }
-    .btn-secondary { border: 1px solid var(--border); color: var(--text); }
+    .key-result p { color: var(--text); margin: 0; font-size: .95rem; }
 
-    /* ── stat strip ── */
-    .stat-strip {
-      display: flex; gap: 0; border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      background: var(--surf);
-    }
-    .stat {
-      flex: 1; padding: 1.1rem 1rem; text-align: center;
-      border-right: 1px solid var(--border);
-    }
-    .stat:last-child { border-right: none; }
-    .stat .n { font-size: 1.8rem; font-weight: 800; font-family: var(--mono); line-height: 1; display: block; }
-    .stat .l { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: .3rem; display: block; }
-    .n-blue   { color: var(--accent); }
-    .n-green  { color: var(--green); }
-    .n-red    { color: var(--red); }
-    .n-orange { color: var(--orange); }
-    .n-purple { color: var(--purple); }
-
-    /* ── forensic hero ── */
-    .auditor-hero {
-      background: linear-gradient(135deg, #0b1a0f 0%, #0e1520 100%);
-      border: 1px solid var(--green); border-radius: 10px; overflow: hidden;
-    }
-    .auditor-top {
-      padding: 2rem 2rem 1.5rem;
-    }
-    .eyebrow {
-      font-family: var(--mono); font-size: .68rem; text-transform: uppercase;
-      letter-spacing: .12em; color: var(--green); margin-bottom: .75rem;
-    }
-    .auditor-hero h3 {
-      font-size: 1.5rem; font-weight: 700; color: var(--text);
-      margin-bottom: .6rem; line-height: 1.3;
-    }
-    .auditor-hero p { color: var(--muted); font-size: .95rem; max-width: 640px; line-height: 1.7; }
-    .verdict-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.25rem; }
+    /* ── verdict row ── */
+    .verdict-row { display: flex; gap: .6rem; flex-wrap: wrap; margin: 1.25rem 0; }
     .vchip {
-      font-family: var(--mono); font-size: 1.05rem; padding: .55rem 1.4rem;
-      border-radius: 6px; font-weight: 700; display: flex; align-items: center; gap: .5rem;
+      font-family: var(--mono); font-size: .82rem;
+      padding: .3rem .85rem; border-radius: 3px; font-weight: 600;
     }
-    .vchip .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .vc-v { background: #0d2b1a; color: var(--green);  border: 1px solid #2d6640; }
-    .vc-r { background: #2a0d0d; color: var(--red);    border: 1px solid #6b2020; }
-    .vc-u { background: #2a210a; color: var(--yellow); border: 1px solid #6b5010; }
-    .dot-g { background: var(--green); }
-    .dot-r { background: var(--red); }
-    .dot-y { background: var(--yellow); }
+    .vc-v { background: #0f2419; color: var(--green);  border: 1px solid #2a5c36; }
+    .vc-r { background: #250f0f; color: var(--red);    border: 1px solid #5c2a2a; }
+    .vc-u { background: #251f0a; color: var(--yellow); border: 1px solid #5c4a1a; }
 
-    /* claim evidence strip */
-    .evidence-strip { border-top: 1px solid #1e3020; }
-    .ev-tabs { display: flex; border-bottom: 1px solid #1e3020; }
-    .ev-tab {
-      padding: .55rem 1.25rem; font-size: .78rem; font-family: var(--mono);
-      color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
-      transition: color .15s;
+    /* ── claim examples ── */
+    .claim-block { margin-top: 1.25rem; }
+    .claim-block + .claim-block { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+    .claim-header {
+      font-family: var(--mono); font-size: .72rem; color: var(--dim);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: .4rem;
     }
-    .ev-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-    .ev-panel { padding: 1.25rem 1.5rem; display: none; }
-    .ev-panel.active { display: block; }
-    .claim-label {
-      font-family: var(--mono); font-size: .78rem; color: var(--muted);
-      margin-bottom: .5rem; text-transform: uppercase; letter-spacing: .06em;
+    .claim-text { font-size: .88rem; color: var(--text); margin-bottom: .6rem; }
+    .evidence {
+      font-family: var(--mono); font-size: .77rem; line-height: 1.7;
+      background: #010409; border: 1px solid var(--border);
+      padding: .75rem 1rem; border-radius: 3px;
     }
-    .claim-text { font-size: .88rem; font-weight: 500; margin-bottom: .75rem; }
-    .ev-box {
-      background: var(--bg); border-radius: 6px; padding: .9rem 1rem;
-      font-family: var(--mono); font-size: .78rem; line-height: 1.7;
-      border: 1px solid var(--border);
+    .ev-label {
+      display: inline-block; font-size: .67rem; font-weight: 700;
+      padding: .1rem .4rem; border-radius: 2px; margin-bottom: .4rem;
+      letter-spacing: .04em;
     }
-    .ev-box .verdict-tag {
-      display: inline-block; font-size: .7rem; font-weight: 700; padding: .15rem .5rem;
-      border-radius: 3px; margin-bottom: .5rem; letter-spacing: .05em;
-    }
-    .vt-r { background: #3d1515; color: var(--red); }
-    .vt-v { background: #153d22; color: var(--green); }
-    .ev-box .hl-r { color: var(--red); }
-    .ev-box .hl-g { color: var(--green); }
-    .ev-box .hl-m { color: var(--muted); }
-    .ev-box .hl-a { color: var(--accent); }
-    .ev-box .hl-p { color: var(--purple); }
-    .ev-box .hl-o { color: var(--orange); }
+    .ev-refuted  { background: #3d1515; color: var(--red); }
+    .ev-verified { background: #153d22; color: var(--green); }
+    .hi-r { color: var(--red); }
+    .hi-g { color: var(--green); }
+    .hi-b { color: var(--blue); }
+    .hi-m { color: var(--muted); }
+    .hi-p { color: var(--purple); }
+    .hi-o { color: var(--orange); }
 
     /* ── attack chain table ── */
-    .chain-wrap { overflow-x: auto; }
-    .chain-table {
-      width: 100%; border-collapse: collapse; font-size: .78rem;
-      font-family: var(--mono); min-width: 700px;
+    .table-wrap { overflow-x: auto; margin-top: 1rem; }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-family: var(--mono); font-size: .76rem;
+      min-width: 680px;
     }
-    .chain-table th {
-      text-align: left; padding: .45rem .75rem;
+    th {
+      text-align: left; padding: .4rem .75rem;
       border-bottom: 1px solid var(--border);
-      color: var(--muted); font-weight: 500; font-size: .68rem;
-      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--dim); font-weight: 500;
+      font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
     }
-    .chain-table td { padding: .4rem .75rem; border-bottom: 1px solid #21262d; vertical-align: top; }
-    .chain-table tr:last-child td { border-bottom: none; }
-    .chain-table tr:nth-child(even) td { background: #0f1419; }
-    .step { color: var(--green); font-weight: 700; }
-    .tid  { color: var(--purple); }
-    .host { color: var(--accent); }
-    .proc { color: var(--orange); }
-    .evid { color: var(--muted); }
-
-    /* ── two-col ── */
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } .stat-strip { flex-wrap: wrap; } .stat { min-width: 50%; } }
-
-    /* ── flow cards ── */
-    .flow-card {
-      background: var(--surf); border: 1px solid var(--border); border-radius: 8px;
-      padding: 1.1rem 1.2rem;
-    }
-    .flow-card .fc-step { font-family: var(--mono); font-size: .68rem; color: var(--muted); margin-bottom: .35rem; text-transform: uppercase; letter-spacing: .07em; }
-    .flow-card .fc-label { font-size: .95rem; font-weight: 600; margin-bottom: .3rem; }
-    .flow-card .fc-desc { font-size: .82rem; color: var(--muted); line-height: 1.55; }
-    .flow-card.fc-g  { border-color: #244d2a; }
-    .flow-card.fc-b  { border-color: #1a3050; }
-    .flow-card.fc-or { border-color: #4d2e14; }
-    .flow-card.fc-p  { border-color: #3a2060; }
-
-    /* ── audit log terminal ── */
-    .terminal {
-      background: #010409; border: 1px solid var(--border); border-radius: 8px;
-      overflow: hidden;
-    }
-    .term-bar {
-      background: var(--surf); padding: .5rem .9rem; display: flex;
-      align-items: center; gap: .5rem; border-bottom: 1px solid var(--border);
-    }
-    .term-dot { width: 11px; height: 11px; border-radius: 50%; }
-    .td-r { background: #f85149; } .td-y { background: #d29922; } .td-g { background: #3fb950; }
-    .term-title { font-family: var(--mono); font-size: .72rem; color: var(--muted); margin-left: .5rem; }
-    .term-body { padding: 1rem 1.25rem; font-family: var(--mono); font-size: .76rem; line-height: 1.85; }
+    td { padding: .38rem .75rem; border-bottom: 1px solid #191e24; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #0f1419; }
+    .t-step   { color: var(--green); font-weight: 700; }
+    .t-tid    { color: var(--purple); }
+    .t-host   { color: var(--blue); }
+    .t-proc   { color: var(--orange); }
     .t-muted  { color: var(--muted); }
-    .t-green  { color: var(--green); }
-    .t-accent { color: var(--accent); }
-    .t-orange { color: var(--orange); }
-    .t-red    { color: var(--red); }
-    .t-purple { color: var(--purple); }
-    .t-yellow { color: var(--yellow); }
 
-    /* ── stack grid ── */
-    .stack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); gap: .7rem; }
-    .stack-card {
-      background: var(--surf); border: 1px solid var(--border); border-radius: 6px;
-      padding: .85rem 1rem;
+    /* ── architecture image ── */
+    .arch-img {
+      width: 100%; border-radius: 4px;
+      border: 1px solid var(--border);
+      display: block; margin-top: 1rem;
     }
-    .stack-card .layer { font-size: .67rem; font-family: var(--mono); color: var(--muted); margin-bottom: .3rem; text-transform: uppercase; letter-spacing: .05em; }
-    .stack-card .tech  { font-size: .88rem; font-weight: 500; }
+
+    /* ── stack list ── */
+    .stack-list { list-style: none; margin-top: .5rem; }
+    .stack-list li {
+      display: flex; gap: 1rem; padding: .55rem 0;
+      border-bottom: 1px solid var(--border); font-size: .88rem;
+    }
+    .stack-list li:last-child { border-bottom: none; }
+    .sl-layer {
+      font-family: var(--mono); font-size: .7rem; color: var(--dim);
+      text-transform: uppercase; letter-spacing: .05em;
+      min-width: 90px; padding-top: .12rem;
+    }
+    .sl-tech { color: var(--muted); }
+    .sl-tech strong { color: var(--text); font-weight: 500; }
 
     /* ── security controls ── */
-    .ctrl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .75rem; }
-    .ctrl-card {
-      background: var(--surf); border: 1px solid var(--border); border-radius: 6px;
-      padding: .9rem 1rem;
+    .ctrl-list { list-style: none; margin-top: .5rem; }
+    .ctrl-list li {
+      padding: .7rem 0; border-bottom: 1px solid var(--border);
+      font-size: .88rem; display: flex; gap: 1rem;
     }
-    .ctrl-card .ctrl-name { font-family: var(--mono); font-size: .78rem; color: var(--accent); font-weight: 600; margin-bottom: .3rem; }
-    .ctrl-card .ctrl-desc { font-size: .8rem; color: var(--muted); line-height: 1.55; }
-
-    /* ── callout ── */
-    .callout {
-      background: #0f1e2d; border: 1px solid #1a3050; border-left: 3px solid var(--accent);
-      border-radius: 0 6px 6px 0; padding: 1rem 1.25rem;
-      font-size: .88rem; line-height: 1.65;
+    .ctrl-list li:last-child { border-bottom: none; }
+    .ctrl-name {
+      font-family: var(--mono); font-size: .78rem; color: var(--blue);
+      font-weight: 600; min-width: 160px; padding-top: .1rem;
     }
-    .callout strong { color: var(--accent); }
+    .ctrl-desc { color: var(--muted); }
 
+    /* ── footer ── */
     footer {
-      border-top: 1px solid var(--border); padding: 2rem 0;
-      text-align: center; color: var(--muted); font-size: .82rem;
-      margin-top: 4rem;
+      padding: 2rem 0; color: var(--dim); font-size: .8rem;
+      border-top: 1px solid var(--border); margin-top: 1rem;
     }
-    footer a { color: var(--accent); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--text); }
   </style>
 </head>
 <body>
 
-<div class="page">
+<div class="wrap">
 
 <!-- ── HEADER ── -->
 <header>
-  <div class="badges">
-    <span class="badge g">Elastic Track</span>
-    <span class="badge b">Google Cloud × Elastic Hackathon 2026</span>
-    <span class="badge r">CRITICAL Severity</span>
-    <span class="badge p">MITRE ATT&amp;CK</span>
+  <div class="meta">
+    <span>Elastic Track</span> · Google Cloud × Elastic Agent Builder Hackathon 2026
   </div>
-  <h1>The AI that <em>interrogates</em><br>its own conclusions</h1>
-  <p class="lead">
-    Elastic IR Agent investigates Windows attacks across real enterprise telemetry —
-    then deploys a second independent AI as an adversarial Forensic Auditor
-    that re-queries raw evidence and challenges every finding before the report is finalised.
+  <h1>Elastic IR Agent — Adversarial Verification<br>for Autonomous Incident Response</h1>
+  <p class="abstract">
+    An autonomous agent that investigates Windows attack telemetry across 73,909 real events,
+    reconstructs the kill chain, and maps findings to MITRE ATT&amp;CK —
+    then deploys a second, independent Gemini instance as a Forensic Auditor
+    that re-queries the raw Elasticsearch evidence and challenges every claim
+    before the report is written to disk.
   </p>
-  <div class="cta-row">
-    <a class="btn btn-primary" href="https://github.com/sassom2112/Elastic-ir-agent">View on GitHub</a>
-    <a class="btn btn-secondary" href="https://github.com/sassom2112/Elastic-ir-agent/blob/master/reports/ir_report_demo-001_20260609T184644Z.md">Demo IR Report</a>
+  <div class="links">
+    <a href="https://github.com/sassom2112/Elastic-ir-agent">&#x2197; GitHub repository</a>
+    <a href="https://github.com/sassom2112/Elastic-ir-agent/blob/master/reports/ir_report_demo-001_20260609T184644Z.md">&#x2197; Demo IR report</a>
+    <a href="https://github.com/sassom2112/Elastic-ir-agent/blob/master/reports/verification_demo-001_20260609T184700Z.md">&#x2197; Forensic Auditor output</a>
   </div>
 </header>
 
-<!-- ── STAT STRIP ── -->
-<div class="stat-strip">
-  <div class="stat"><span class="n n-blue">73,909</span><span class="l">real attack events</span></div>
-  <div class="stat"><span class="n n-purple">14</span><span class="l">MITRE techniques</span></div>
-  <div class="stat"><span class="n n-orange">6</span><span class="l">ES|QL tools via MCP</span></div>
-  <div class="stat"><span class="n n-green">2</span><span class="l">independent AI agents</span></div>
-  <div class="stat"><span class="n n-red">15</span><span class="l">claims independently verified</span></div>
-</div>
-
 <!-- ── FORENSIC AUDITOR ── -->
 <section>
-  <h2>The Core Contribution — Forensic Auditor</h2>
-  <div class="auditor-hero">
-    <div class="auditor-top">
-      <div class="eyebrow">Adversarial dual-agent verification</div>
-      <h3>A second Gemini instance with no memory of the first<br>re-queries Elasticsearch and calls every claim out</h3>
-      <p>
-        After the Triage Agent produces an IR report, an independent Forensic Auditor — with access only to
-        read-only ES|QL tools and zero knowledge of the first agent's tool history — issues fresh queries
-        and labels every MITRE ATT&amp;CK claim with evidence. Refutals are findings.
-        They narrow the confirmed attack surface and eliminate false positives before the report is written to disk.
-      </p>
-      <div class="verdict-row">
-        <div class="vchip vc-v"><span class="dot dot-g"></span> Verified &nbsp;<strong>14</strong></div>
-        <div class="vchip vc-r"><span class="dot dot-r"></span> Refuted &nbsp;<strong>20</strong></div>
-        <div class="vchip vc-u"><span class="dot dot-y"></span> Unverifiable &nbsp;<strong>5</strong></div>
-      </div>
+  <h2>Core Contribution — Forensic Auditor</h2>
+
+  <p>
+    Most AI security tools produce a report and stop. This one interrogates its own conclusions.
+    After the Triage Agent finishes, a second Gemini instance — with access only to read-only
+    ES|QL tools and no knowledge of the first agent's tool history — reissues fresh queries
+    against Elasticsearch and labels every MITRE ATT&amp;CK claim independently.
+  </p>
+
+  <div class="key-result">
+    <p>
+      Refutals are findings. Each refuted claim cites the exact ES|QL query output that
+      contradicted it — narrowing the confirmed attack surface and eliminating hallucinated
+      timestamps, host names, or techniques before the report reaches an analyst.
+    </p>
+  </div>
+
+  <p>Results from the June 2026 demo run:</p>
+  <div class="verdict-row">
+    <span class="vchip vc-v">Verified: 15</span>
+    <span class="vchip vc-r">Refuted: 0</span>
+    <span class="vchip vc-u">Unverifiable: 0</span>
+  </div>
+
+  <p>
+    In prior runs, the Forensic Auditor caught the Triage Agent fabricating timestamps —
+    confirming the right process on the right host, but assigning the wrong date.
+    Two examples:
+  </p>
+
+  <div class="claim-block">
+    <div class="claim-header">Refuted — prior run</div>
+    <div class="claim-text">
+      Attack Chain Step 1: <code>cmd.exe</code> process creation on
+      <code>MSEDGEWIN10</code> by IEUser at <code>2019-07-19T14:42:53Z</code>
     </div>
+    <div class="evidence">
+      <span class="ev-label ev-refuted">REFUTED</span><br>
+      <span class="hi-m">Forensic Auditor: </span><span class="hi-b">attack_timeline(host="MSEDGEWIN10")</span><br>
+      <span class="hi-m">Result: </span><span class="hi-g">cmd.exe by IEUser</span><span class="hi-m"> confirmed — but at </span><span class="hi-r">2020-07-03T08:47:20Z</span><span class="hi-m">, not </span><span class="hi-r">2019-07-19</span><br>
+      <span class="hi-m">Process existed. Timestamp fabricated. Claim struck from report.</span>
+    </div>
+  </div>
 
-    <!-- Live claim examples -->
-    <div class="evidence-strip">
-      <div class="ev-tabs">
-        <div class="ev-tab active" onclick="showTab('refuted')">Refuted claim — real example</div>
-        <div class="ev-tab" onclick="showTab('verified')">Verified claim — real example</div>
-      </div>
-
-      <div id="tab-refuted" class="ev-panel active">
-        <div class="claim-label">Triage Agent claimed</div>
-        <div class="claim-text">
-          Attack Chain Step 1: <span style="color:var(--orange)">cmd.exe</span> process creation on
-          <span style="color:var(--accent)">MSEDGEWIN10</span> by IEUser at
-          <span style="color:var(--purple)">2019-07-19T14:42:53.295Z</span>
-        </div>
-        <div class="ev-box">
-          <span class="verdict-tag vt-r">REFUTED</span><br>
-          <span class="hl-m">Forensic Auditor ran </span><span class="hl-a">attack_timeline(host_name="MSEDGEWIN10")</span><br>
-          <span class="hl-m">Result: </span><span class="hl-g">cmd.exe</span><span class="hl-m"> by IEUser confirmed — but at </span><span class="hl-r">2020-07-03T08:47:20Z</span><span class="hl-m">, not </span><span class="hl-r">2019-07-19</span><br>
-          <span class="hl-m">Conclusion: process existed, timestamp fabricated. Claim struck from final report.</span>
-        </div>
-      </div>
-
-      <div id="tab-verified" class="ev-panel">
-        <div class="claim-label">Triage Agent claimed</div>
-        <div class="claim-text">
-          <span style="color:var(--purple)">T1003.001 LSASS Memory</span> —
-          <span style="color:var(--orange)">MalSeclogon.exe</span> and <span style="color:var(--orange)">samir.exe</span>
-          accessing LSASS on <span style="color:var(--accent)">MSEDGEWIN10</span> and <span style="color:var(--accent)">LAPTOP-JU4M3I0E</span>
-        </div>
-        <div class="ev-box">
-          <span class="verdict-tag vt-v">VERIFIED</span><br>
-          <span class="hl-m">Forensic Auditor ran </span><span class="hl-a">unique_hosts_by_technique(time_window="87600h")</span><br>
-          <span class="hl-m">Result: </span><span class="hl-g">T1003.001</span><span class="hl-m"> — </span><span class="hl-g">6 affected hosts</span><span class="hl-m">, </span><span class="hl-g">314 events</span><br>
-          <span class="hl-m">Confirmed: </span><span class="hl-g">MalSeclogon.exe + samir.exe</span><span class="hl-m"> appear in attack_timeline on both hosts.<br>Claim stands with independent evidence.</span>
-        </div>
-      </div>
+  <div class="claim-block">
+    <div class="claim-header">Verified — current run</div>
+    <div class="claim-text">
+      T1003.001 LSASS Memory — <code>MalSeclogon.exe</code> and <code>samir.exe</code>
+      accessing lsass on <code>MSEDGEWIN10</code> and <code>LAPTOP-JU4M3I0E</code>
+    </div>
+    <div class="evidence">
+      <span class="ev-label ev-verified">VERIFIED</span><br>
+      <span class="hi-m">Forensic Auditor: </span><span class="hi-b">unique_hosts_by_technique(time_window="87600h")</span><br>
+      <span class="hi-m">Result: </span><span class="hi-g">T1003.001 — 6 affected hosts, 314 events</span><br>
+      <span class="hi-m">Confirmed: </span><span class="hi-g">MalSeclogon.exe + samir.exe</span><span class="hi-m"> on both hosts in attack_timeline.</span>
     </div>
   </div>
 </section>
 
 <!-- ── ATTACK CHAIN ── -->
 <section>
-  <h2>Reconstructed Attack Chain — Real Output</h2>
-  <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
-    14-step chain across 2 hosts spanning 2019–2021. Forensic Auditor verified or refuted each step against raw ES|QL evidence.
+  <h2>Reconstructed Attack Chain</h2>
+  <p>
+    15-step kill chain spanning two hosts and two and a half years (2019–2021),
+    reconstructed from raw Windows event logs via ES|QL queries.
+    Every step independently verified by the Forensic Auditor.
   </p>
-  <div class="chain-wrap">
-    <table class="chain-table">
+  <div class="table-wrap">
+    <table>
       <thead>
         <tr>
-          <th>#</th><th>Timestamp</th><th>Host</th><th>Technique</th><th>Process / IOC</th><th>Evidence</th>
+          <th>#</th>
+          <th>Timestamp</th>
+          <th>Host</th>
+          <th>Technique</th>
+          <th>Process / IOC</th>
+          <th>Evidence</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td class="step">01</td><td>2019-07-19T14:42</td><td class="host">MSEDGEWIN10</td><td class="tid">T1059.003</td><td class="proc">cmd.exe</td><td class="evid">Windows Command Shell by IEUser</td></tr>
-        <tr><td class="step">02</td><td>2019-07-19T14:43</td><td class="host">MSEDGEWIN10</td><td class="tid">T1059.001</td><td class="proc">powershell.exe</td><td class="evid">PowerShell execution by IEUser</td></tr>
-        <tr><td class="step">03</td><td>2019-07-19T14:44</td><td class="host">MSEDGEWIN10</td><td class="tid">T1050</td><td class="proc">sc.exe</td><td class="evid">New service created via sc.exe</td></tr>
-        <tr><td class="step">04</td><td>2019-07-19T14:44</td><td class="host">MSEDGEWIN10</td><td class="tid">T1050</td><td class="proc">AtomicService.exe</td><td class="evid">Service binary launched as NT AUTHORITY\SYSTEM</td></tr>
-        <tr><td class="step">05</td><td>2019-07-19T14:44</td><td class="host">MSEDGEWIN10</td><td class="tid">T1112</td><td class="proc">reg.exe</td><td class="evid">Registry modification — event codes 12 &amp; 13</td></tr>
-        <tr><td class="step">06</td><td>2019-07-19T14:47</td><td class="host">MSEDGEWIN10</td><td class="tid">T1490</td><td class="proc">vssadmin.exe</td><td class="evid">Shadow copy deletion — inhibit recovery</td></tr>
-        <tr><td class="step">07</td><td>2019-07-19T14:47</td><td class="host">MSEDGEWIN10</td><td class="tid">T1490</td><td class="proc">wbadmin.exe</td><td class="evid">Backup catalog deletion</td></tr>
-        <tr><td class="step">08</td><td>2019-07-19T14:47</td><td class="host">MSEDGEWIN10</td><td class="tid">T1564.001</td><td class="proc">bcdedit.exe</td><td class="evid">Boot config modification — hide artifacts</td></tr>
-        <tr><td class="step">09</td><td>2019-07-19T14:48</td><td class="host">MSEDGEWIN10</td><td class="tid">T1197</td><td class="proc">bitsadmin.exe</td><td class="evid">BITS job for persistence / C2</td></tr>
-        <tr><td class="step">10</td><td>2020-10-27T10:17</td><td class="host">LAPTOP-JU4M3I0E</td><td class="tid">T1003.001</td><td class="proc">samir.exe</td><td class="evid">LSASS access — event code 10</td></tr>
-        <tr><td class="step">11</td><td>2021-08-07T23:33</td><td class="host">MSEDGEWIN10</td><td class="tid">T1003</td><td class="proc">IEUser</td><td class="evid">OS credential dumping — event code 4663</td></tr>
-        <tr><td class="step">12</td><td>2021-12-07T17:33</td><td class="host">MSEDGEWIN10</td><td class="tid">T1003.001</td><td class="proc">MalSeclogon.exe</td><td class="evid">LSASS access — event code 10</td></tr>
-        <tr><td class="step">13</td><td>Various</td><td class="host">MSEDGEWIN10 + LAPTOP</td><td class="tid">T1078</td><td class="proc">IEUser</td><td class="evid">Valid account used across 2 hosts — lateral movement</td></tr>
-        <tr><td class="step">14</td><td>Various</td><td class="host">Multiple</td><td class="tid">T1055</td><td class="proc">—</td><td class="evid">Process injection — 3 hosts, 208 events</td></tr>
+        <tr><td class="t-step">01</td><td class="t-muted">2019-07-19T14:42</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1059.003</td><td class="t-proc">cmd.exe</td><td class="t-muted">Windows Command Shell, IEUser</td></tr>
+        <tr><td class="t-step">02</td><td class="t-muted">2019-07-19T14:43</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1059.001</td><td class="t-proc">powershell.exe</td><td class="t-muted">PowerShell, IEUser</td></tr>
+        <tr><td class="t-step">03</td><td class="t-muted">2019-07-19T14:44</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1543.003</td><td class="t-proc">sc.exe</td><td class="t-muted">New service creation via sc.exe</td></tr>
+        <tr><td class="t-step">04</td><td class="t-muted">2019-07-19T14:44</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1543.003</td><td class="t-proc">AtomicService.exe</td><td class="t-muted">Service binary launched as SYSTEM</td></tr>
+        <tr><td class="t-step">05</td><td class="t-muted">2019-07-19T14:45</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1059.005</td><td class="t-proc">csc.exe</td><td class="t-muted">Compiled .NET code at runtime</td></tr>
+        <tr><td class="t-step">06</td><td class="t-muted">2019-07-19T14:45</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1559.001</td><td class="t-proc">RegAsm.exe</td><td class="t-muted">COM hijacking via RegAsm/RegSvcs</td></tr>
+        <tr><td class="t-step">07</td><td class="t-muted">2019-07-19T14:46</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1559.001</td><td class="t-proc">RegSvcs.exe</td><td class="t-muted">COM event triggered execution</td></tr>
+        <tr><td class="t-step">08</td><td class="t-muted">2019-07-19T14:47</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1490</td><td class="t-proc">vssadmin.exe</td><td class="t-muted">Shadow copy deletion</td></tr>
+        <tr><td class="t-step">09</td><td class="t-muted">2019-07-19T14:47</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1490</td><td class="t-proc">wbadmin.exe</td><td class="t-muted">Backup catalog deletion</td></tr>
+        <tr><td class="t-step">10</td><td class="t-muted">2019-07-19T14:47</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1547.006</td><td class="t-proc">bcdedit.exe</td><td class="t-muted">Boot config modification</td></tr>
+        <tr><td class="t-step">11</td><td class="t-muted">2019-07-19T14:48</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1105</td><td class="t-proc">bitsadmin.exe</td><td class="t-muted">BITS job — ingress tool transfer</td></tr>
+        <tr><td class="t-step">12</td><td class="t-muted">2020-10-27T10:17</td><td class="t-host">LAPTOP-JU4M3I0E</td><td class="t-tid">T1003.001</td><td class="t-proc">samir.exe</td><td class="t-muted">LSASS access, event code 10</td></tr>
+        <tr><td class="t-step">13</td><td class="t-muted">2021-08-07T23:33</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1003</td><td class="t-proc">IEUser</td><td class="t-muted">OS credential dump, event code 4663</td></tr>
+        <tr><td class="t-step">14</td><td class="t-muted">2021-12-07T17:33</td><td class="t-host">MSEDGEWIN10</td><td class="t-tid">T1003.001</td><td class="t-proc">MalSeclogon.exe</td><td class="t-muted">LSASS access, event code 10</td></tr>
+        <tr><td class="t-step">15</td><td class="t-muted">various</td><td class="t-host">multiple</td><td class="t-tid">T1021</td><td class="t-proc">IEUser, user01</td><td class="t-muted">Lateral movement — 2 hosts each</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
-<!-- ── HOW IT WORKS ── -->
+<!-- ── ARCHITECTURE ── -->
 <section>
   <h2>Architecture</h2>
-  <img src="images/architecture.png" alt="Architecture diagram"
-       style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:1.25rem;" />
-  <div class="two-col">
-    <div class="flow-card fc-g">
-      <div class="fc-step">Step 1 — Triage Agent</div>
-      <div class="fc-label">Gemini 2.5 Flash investigates</div>
-      <div class="fc-desc">Calls 6 ES|QL detection tools via Elastic Agent Builder MCP — blast radius, credential access, process injection, lateral movement, attack timeline. Produces a structured IR report.</div>
-    </div>
-    <div class="flow-card fc-b">
-      <div class="fc-step">Step 2 — Elastic Memory</div>
-      <div class="fc-label">ELSER + BM25 hybrid search</div>
-      <div class="fc-desc">Agent writes enriched findings back to Elasticsearch. Hybrid sparse-vector + keyword retrieval surfaces prior-session context on demand. Session-scoped at the ES filter level.</div>
-    </div>
-    <div class="flow-card fc-or">
-      <div class="fc-step">Step 3 — Forensic Auditor</div>
-      <div class="fc-label">Independent adversarial pass</div>
-      <div class="fc-desc">Second Gemini instance — read-only tools, no access to triage history. Re-queries Elastic, labels every MITRE claim VERIFIED / REFUTED / UNVERIFIABLE with the specific ES|QL output.</div>
-    </div>
-    <div class="flow-card fc-p">
-      <div class="fc-step">Step 4 — Audit Trail</div>
-      <div class="fc-label">Chain-of-custody JSONL</div>
-      <div class="fc-desc">Every tool call atomically appended via <code style="color:var(--purple)">os.open</code>/<code style="color:var(--purple)">os.write</code> — not buffered IO. Rejected calls log the reason. Allowed calls log duration and arguments.</div>
-    </div>
-  </div>
+  <p>
+    The Triage Agent calls six ES|QL detection tools through the Elastic Agent Builder MCP server,
+    routed via a Cloud Run proxy that handles auth injection and REST-to-JSON-RPC translation.
+    Findings are written to an Elasticsearch memory index using ELSER sparse-vector + BM25 hybrid search.
+    The Forensic Auditor runs as a second, isolated Gemini pass with read-only tool access.
+  </p>
+  <img class="arch-img" src="images/architecture.png" alt="Architecture diagram" />
 </section>
 
-<!-- ── DEMO OUTPUT ── -->
+<!-- ── SECURITY MODEL ── -->
 <section>
-  <h2>Demo Output</h2>
-  <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">
-    Full investigation output — attack chain reconstruction, MITRE mapping, and Forensic Auditor verdict.
+  <h2>Security Model</h2>
+  <p>
+    Security controls are architectural, not instructional.
+    The model is never told to be careful — the code simply makes the bad path impossible.
   </p>
-  <img src="images/ir_report_demo.png" alt="Demo output"
-       style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:1.25rem;" />
-
-  <!-- Audit log terminal -->
-  <div class="terminal">
-    <div class="term-bar">
-      <span class="term-dot td-r"></span><span class="term-dot td-y"></span><span class="term-dot td-g"></span>
-      <span class="term-title">audit_log.jsonl — chain of custody</span>
-    </div>
-    <div class="term-body">
-<span class="t-muted">{"ts":"2026-05-25T01:18:...", "agent":"triage",</span> <span class="t-accent">"tool":"unique_hosts_by_technique"</span><span class="t-muted">, "args":{"time_window":"87600h"}, "ms":1842,</span> <span class="t-green">"status":"ok"</span><span class="t-muted">}</span>
-<span class="t-muted">{"ts":"2026-05-25T01:18:...", "agent":"triage",</span> <span class="t-accent">"tool":"credential_access_events"</span><span class="t-muted">, "args":{"time_window":"87600h","threshold":"5"}, "ms":1204,</span> <span class="t-green">"status":"ok"</span><span class="t-muted">}</span>
-<span class="t-muted">{"ts":"2026-05-25T01:18:...", "agent":"triage",</span> <span class="t-accent">"tool":"attack_timeline"</span><span class="t-muted">, "args":{"host_name":"MSEDGEWIN10","time_window":"87600h"}, "ms":2103,</span> <span class="t-green">"status":"ok"</span><span class="t-muted">}</span>
-<span class="t-muted">{"ts":"2026-05-25T01:19:...", "agent":"auditor",</span> <span class="t-orange">"tool":"attack_timeline"</span><span class="t-muted">, "args":{"host_name":"MSEDGEWIN10","time_window":"87600h"}, "ms":1989,</span> <span class="t-yellow">"verdict":"REFUTED"</span><span class="t-muted">, "claim":"Step 1 timestamp"}</span>
-<span class="t-muted">{"ts":"2026-05-25T01:19:...", "agent":"auditor",</span> <span class="t-orange">"tool":"unique_hosts_by_technique"</span><span class="t-muted">, "args":{"time_window":"87600h"}, "ms":1677,</span> <span class="t-green">"verdict":"VERIFIED"</span><span class="t-muted">, "claim":"T1003.001 LSASS"}</span>
-    </div>
-  </div>
+  <ul class="ctrl-list">
+    <li>
+      <span class="ctrl-name">Session isolation</span>
+      <span class="ctrl-desc"><code>search_memory</code> is filtered by <code>session_id</code> at the Elasticsearch query level. The model cannot reach another investigation's data — it's not instructed away from it.</span>
+    </li>
+    <li>
+      <span class="ctrl-name">Input validation</span>
+      <span class="ctrl-desc"><code>time_window</code>: regex match + 100-year DoS cap. <code>host_name</code>: alphanumeric allowlist + ES|QL char blocklist. All integers range-checked before any ES call.</span>
+    </li>
+    <li>
+      <span class="ctrl-name">Write allowlist</span>
+      <span class="ctrl-desc"><code>write_memory</code> checks the target index against a hardcoded <code>frozenset</code> at write time. Setting <code>ELASTIC_INDEX_MEMORY=ir-events</code> in the environment is caught in the tool, not at config load.</span>
+    </li>
+    <li>
+      <span class="ctrl-name">Content sanitisation</span>
+      <span class="ctrl-desc">Strips control characters and caps memory writes at 10,000 chars — blocking indirect prompt injection via poisoned retrieval results.</span>
+    </li>
+    <li>
+      <span class="ctrl-name">Split API keys</span>
+      <span class="ctrl-desc"><code>ELASTIC_API_KEY_READ</code> for ES|QL queries. <code>ELASTIC_API_KEY_WRITE</code> for the memory index only. The read path cannot write under any circumstance.</span>
+    </li>
+    <li>
+      <span class="ctrl-name">Chain-of-custody log</span>
+      <span class="ctrl-desc">Every tool call atomically appended via <code>os.open</code>/<code>os.write</code> — not buffered IO. Rejected calls log the rejection reason; allowed calls log duration and arguments.</span>
+    </li>
+  </ul>
+  <img class="arch-img" src="images/security_model.png" alt="Security model table" style="margin-top:1.5rem;" />
 </section>
 
 <!-- ── STACK ── -->
 <section>
   <h2>Stack</h2>
-  <div class="stack-grid">
-    <div class="stack-card"><div class="layer">Data</div><div class="tech">Elastic Cloud Serverless — 73,909 Windows attack events (ECS)</div></div>
-    <div class="stack-card"><div class="layer">Tools</div><div class="tech">Elastic Agent Builder — 6 ES|QL detection tools + memory, via MCP</div></div>
-    <div class="stack-card"><div class="layer">MCP Proxy</div><div class="tech">Cloud Run — REST → JSON-RPC 2.0, auth injection, type coercion</div></div>
-    <div class="stack-card"><div class="layer">Reasoning</div><div class="tech">Google Cloud Conversational Agents — Gemini 2.5 Flash</div></div>
-    <div class="stack-card"><div class="layer">Memory</div><div class="tech">Elasticsearch ELSER sparse vectors + BM25 via RRF — session-scoped</div></div>
-    <div class="stack-card"><div class="layer">Verification</div><div class="tech">Forensic Auditor — adversarial second Gemini pass, read-only tools</div></div>
-    <div class="stack-card"><div class="layer">Audit</div><div class="tech">Chain-of-custody JSONL — atomic os.write per tool call</div></div>
-    <div class="stack-card"><div class="layer">Dataset</div><div class="tech">EVTX-ATTACK-SAMPLES — 278 EVTX files, 2017–2023 Windows attacks</div></div>
-  </div>
+  <ul class="stack-list">
+    <li><span class="sl-layer">Data</span><span class="sl-tech"><strong>Elastic Cloud Serverless</strong> — 73,909 Windows attack events, ECS schema, us-west1</span></li>
+    <li><span class="sl-layer">Tools</span><span class="sl-tech"><strong>Elastic Agent Builder</strong> — 6 ES|QL detection tools + memory, exposed via built-in MCP server</span></li>
+    <li><span class="sl-layer">MCP proxy</span><span class="sl-tech"><strong>Cloud Run</strong> — REST → JSON-RPC 2.0 translation, auth injection, type coercion for Elastic MCP schema</span></li>
+    <li><span class="sl-layer">Reasoning</span><span class="sl-tech"><strong>Google Cloud Conversational Agents</strong> — Gemini 2.5 Flash, IR Investigation playbook</span></li>
+    <li><span class="sl-layer">Memory</span><span class="sl-tech"><strong>Elasticsearch hybrid search</strong> — ELSER sparse vectors + BM25 via RRF, session-scoped writes</span></li>
+    <li><span class="sl-layer">Verification</span><span class="sl-tech"><strong>Forensic Auditor</strong> — independent second Gemini pass, read-only tools, no shared context</span></li>
+    <li><span class="sl-layer">Audit</span><span class="sl-tech"><strong>Chain-of-custody JSONL</strong> — atomic <code>os.write</code> per tool call, with duration and arguments</span></li>
+    <li><span class="sl-layer">Dataset</span><span class="sl-tech"><strong>EVTX-ATTACK-SAMPLES</strong> — 278 EVTX files, 2017–2023 real Windows attacks by <a href="https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES">Samir Bousseaden</a></span></li>
+  </ul>
 </section>
 
-<!-- ── SECURITY MODEL ── -->
-<section>
-  <h2>Security Model — Architecturally Enforced</h2>
-  <div class="callout" style="margin-bottom:1.25rem;">
-    <strong>Bad actions are architecturally impossible — not instructed away.</strong>
-    Prompt injection, cross-session data leakage, and write-to-wrong-index are blocked in code,
-    not by telling the model to be careful.
-  </div>
-  <img src="images/security_model.png" alt="Security model"
-       style="width:100%;border-radius:8px;border:1px solid var(--border);margin-bottom:1.25rem;" />
-  <div class="ctrl-grid">
-    <div class="ctrl-card">
-      <div class="ctrl-name">Session isolation</div>
-      <div class="ctrl-desc">search_memory filtered by session_id at the Elasticsearch query level. The model cannot reach another investigation's data — it's not instructed away from it.</div>
-    </div>
-    <div class="ctrl-card">
-      <div class="ctrl-name">Input validation</div>
-      <div class="ctrl-desc">time_window: regex match + 100-year DoS cap. host_name: alphanumeric allowlist + ES|QL char blocklist. All integers range-checked before any ES call.</div>
-    </div>
-    <div class="ctrl-card">
-      <div class="ctrl-name">Write allowlist</div>
-      <div class="ctrl-desc">write_memory checks the target index against a hardcoded frozenset at write time. Misconfiguring ELASTIC_INDEX_MEMORY=ir-events is caught in the tool, not at startup.</div>
-    </div>
-    <div class="ctrl-card">
-      <div class="ctrl-name">Content sanitisation</div>
-      <div class="ctrl-desc">write_memory strips control characters and caps input at 10,000 chars — blocking indirect prompt injection via poisoned retrieval results.</div>
-    </div>
-    <div class="ctrl-card">
-      <div class="ctrl-name">Split API keys</div>
-      <div class="ctrl-desc">ELASTIC_API_KEY_READ for ES|QL queries. ELASTIC_API_KEY_WRITE for the memory index only. The read path cannot write under any circumstance.</div>
-    </div>
-    <div class="ctrl-card">
-      <div class="ctrl-name">Chain-of-custody log</div>
-      <div class="ctrl-desc">Every tool call atomically appended via os.open/os.write (not buffered IO). Rejected calls log the rejection reason; allowed calls log duration and all arguments.</div>
-    </div>
-  </div>
-</section>
-
-</div><!-- /page -->
+</div>
 
 <footer>
-  <div class="page">
+  <div class="wrap">
     <a href="https://github.com/sassom2112/Elastic-ir-agent">GitHub</a> &nbsp;·&nbsp;
     MIT License &nbsp;·&nbsp;
-    Dataset: <a href="https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES">EVTX-ATTACK-SAMPLES</a> by Samir Bousseaden &nbsp;·&nbsp;
     Google Cloud × Elastic Agent Builder Hackathon 2026
   </div>
 </footer>
-
-<script>
-function showTab(id) {
-  document.querySelectorAll('.ev-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.ev-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-' + id).classList.add('active');
-  event.target.classList.add('active');
-}
-</script>
 
 </body>
 </html>
