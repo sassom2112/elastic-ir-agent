@@ -44,6 +44,17 @@ def _mcp_call(tool_name: str, arguments: dict) -> Response:
     return Response(json.dumps(result), status=200, content_type="application/json")
 
 
+def _coerce_args(args: dict) -> dict:
+    """Elastic MCP expects time_window and threshold as strings, not integers."""
+    out = {}
+    for k, v in args.items():
+        if k in ("time_window", "threshold", "top_k") and isinstance(v, (int, float)):
+            out[k] = str(int(v))
+        else:
+            out[k] = v
+    return out
+
+
 @app.route("/tools/<tool_name>", methods=["POST"])
 def tool_call(tool_name: str):
     if tool_name not in TOOLS:
@@ -51,7 +62,7 @@ def tool_call(tool_name: str):
             json.dumps({"error": f"Unknown tool: {tool_name}"}),
             status=404, content_type="application/json",
         )
-    args = request.get_json(silent=True) or {}
+    args = _coerce_args(request.get_json(silent=True) or {})
     return _mcp_call(tool_name, args)
 
 
