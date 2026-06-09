@@ -385,6 +385,64 @@ TOOL_DECLARATIONS = {
 
 _REPORTS_DIR = Path(__file__).parent.parent / "reports"
 
+_MITRE_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
+_HOSTS_RE = re.compile(r"\b([A-Z][A-Z0-9\-]{3,})\b")
+
+
+def _write_containment_runbook(
+    ir_report: str,
+    verification: str,
+    session_id: str,
+    es_write,
+) -> None:
+    """
+    After Forensic Auditor confirms findings, write a structured containment
+    runbook back to ir-agent-memory so it's queryable by session, host, or
+    technique — closing the Detect → Verify → Act → Remember loop.
+    """
+    # Count verdicts from verification output
+    verified = len(re.findall(r"\|\s*VERIFIED\s*\|", verification))
+    refuted  = len(re.findall(r"\|\s*REFUTED\s*\|",  verification))
+
+    # Extract MITRE technique IDs from the IR report
+    techniques = sorted(set(_MITRE_RE.findall(ir_report)))
+
+    # Extract affected hosts (ALL-CAPS words 4+ chars, deduplicated)
+    raw_hosts = _HOSTS_RE.findall(ir_report)
+    skip = {"MITRE", "LSASS", "BITS", "SYSTEM", "VERIFIED", "REFUTED",
+            "CRITICAL", "ACTIVE", "NONE", "ATTACK", "USER", "HOST"}
+    hosts = sorted({h for h in raw_hosts if h not in skip})[:10]
+
+    # Pull the Recommended Actions block if present
+    actions_match = re.search(
+        r"## Recommended Actions\n(.*?)(?=\n## |\Z)", ir_report, re.DOTALL
+    )
+    actions_text = actions_match.group(1).strip() if actions_match else ""
+
+    runbook = (
+        f"## Containment Runbook — session {session_id}\n\n"
+        f"**Forensic Auditor result:** {verified} verified · {refuted} refuted\n\n"
+        f"**Confirmed techniques:** {', '.join(techniques) if techniques else 'see report'}\n\n"
+        f"**Affected hosts:** {', '.join(hosts) if hosts else 'see report'}\n\n"
+        f"### Actions\n{actions_text}\n\n"
+        f"*Queryable via search_memory(session_id='{session_id}', "
+        f"query='containment runbook')*"
+    )
+
+    result = tool_write_memory(
+        es_write,
+        content=runbook,
+        memory_type="containment_runbook",
+        session_id=session_id,
+        mitre_techniques=techniques or None,
+        affected_hosts=hosts or None,
+        confidence=0.95,
+    )
+    if result.get("status") == "written":
+        print("[Runbook] Containment runbook written to ir-agent-memory")
+    else:
+        print(f"[Runbook] Write failed: {result.get('error')}")
+
 
 def _save_report(content: str, session_id: str, suffix: str = "ir_report") -> Path:
     _REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -436,6 +494,7 @@ def run_investigation(prompt: str, session_id: str = "local-001",
                                         validate_args_fn=_validate_tool_args,
                                         model=model, verbose=verbose)
             _save_report(verification, session_id, suffix="verification")
+            _write_containment_runbook(final, verification, session_id, es_write)
             return final
 
         if not fn_calls:
