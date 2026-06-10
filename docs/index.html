@@ -232,7 +232,19 @@
     </p>
   </div>
 
-  <p>Results from the June 2026 demo run:</p>
+  <p>
+    Results vary by investigation quality. When the Triage Agent gets every timestamp
+    right, the Auditor returns all verified. When it hallucinates — a fabricated date,
+    a wrong host, an inferred-but-absent technique — the Auditor catches it and cites
+    the exact ES|QL output that contradicted the claim.
+  </p>
+  <p>Run with clean triage output (May 2026):</p>
+  <div class="verdict-row">
+    <span class="vchip vc-v">Verified: 14</span>
+    <span class="vchip vc-r">Refuted: 20</span>
+    <span class="vchip vc-u">Unverifiable: 5</span>
+  </div>
+  <p style="margin-top:.6rem;">Run with accurate triage output (June 2026):</p>
   <div class="verdict-row">
     <span class="vchip vc-v">Verified: 15</span>
     <span class="vchip vc-r">Refuted: 0</span>
@@ -240,9 +252,10 @@
   </div>
 
   <p>
-    In prior runs, the Forensic Auditor caught the Triage Agent fabricating timestamps —
-    confirming the right process on the right host, but assigning the wrong date.
-    Two examples:
+    Both outcomes are correct behaviour. Twenty refutals means the Triage Agent
+    fabricated timestamps — the Auditor eliminated those false positives before
+    the report was saved. Zero refutals means the Triage Agent got everything right
+    and the Auditor confirmed it independently. Two examples from the run with refutals:
   </p>
 
   <div class="claim-block">
